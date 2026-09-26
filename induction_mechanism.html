@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Induction Algorithm — TARA</title>
+<style>:root { --teal:#0E7C7B; --teal-lt:#DCEEED; --coral:#E4572E; --coral-lt:#FBE4DC; --purple:#6C4AB6; --purple-lt:#EAE3F7; --amber:#B7791F; --amber-lt:#FDF1D6; --ink:#1A1A1A; --muted:#4F5A63; --line:#C9D0D5; --bg:#F2F4F5; --code:#1E1E2E; }
+* { box-sizing:border-box; }
+html { font-size:20px; }
+@media (min-width:1600px) { html { font-size:22px; } }
+body { font-family:Calibri, Carlito, "Segoe UI", Arial, sans-serif; margin:0; padding:28px 40px 60px; background:#fff; color:var(--ink); line-height:1.35; }
+.wrap { max-width:1720px; margin:0 auto; }
+h1 { font-size:2.1rem; margin:0; }
+.sub { color:var(--muted); font-size:1.1rem; margin:6px 0 22px; }
+.kicker { font-size:0.85rem; font-weight:bold; letter-spacing:2px; text-transform:uppercase; color:var(--teal); }
+h2 { font-size:1.45rem; margin:0 0 6px; }
+.panel { border:2px solid var(--line); border-radius:18px; padding:24px 28px; margin-bottom:26px; }
+.desc { color:var(--muted); font-size:1.05rem; margin:0 0 18px; max-width:1300px; }
+code, .mono { font-family:"Courier New", "DejaVu Sans Mono", monospace; }
+button { font-family:inherit; font-size:1rem; font-weight:bold; padding:12px 20px; border-radius:12px; border:2px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; }
+button:hover { border-color:var(--teal); }
+button.primary { background:var(--teal); border-color:var(--teal); color:#fff; }
+button:disabled { opacity:0.35; cursor:not-allowed; }
+.seg { display:inline-flex; border:2px solid var(--line); border-radius:12px; overflow:hidden; flex-wrap:wrap; }
+.seg button { border:none; border-radius:0; color:var(--muted); }
+.seg button + button { border-left:2px solid var(--line); }
+.seg button.on { background:var(--teal); color:#fff; }
+.seg.coral button.on { background:var(--coral); }
+.seg.purple button.on { background:var(--purple); }
+.row { display:flex; gap:26px; flex-wrap:wrap; align-items:flex-start; }
+.col { flex:1; min-width:360px; }
+.ctrl { display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:18px; }
+.ctrl label { font-weight:bold; color:var(--muted); }
+/* code + pseudocode pair: each row = [code | plain English] */
+.codepair { display:grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); border-radius:14px; overflow:hidden; border:2px solid var(--code); }
+.codepair .c { background:var(--code); color:#E4E4EF; font-family:"Courier New","DejaVu Sans Mono",monospace; font-size:0.95rem; }
+.codepair .p { background:#FAFBFC; font-size:1rem; }
+.codepair .hd { font-size:0.75rem; letter-spacing:2px; text-transform:uppercase; font-weight:bold; padding:14px 18px 8px; color:#9A9AB0; font-family:Calibri, Carlito, sans-serif; }
+.codepair .hd.p { color:var(--muted); }
+.codepair .pad { height:12px; }
+.ln { padding:4px 18px; border-left:6px solid transparent; transition:background .25s, opacity .25s; }
+.ln.c { white-space:pre-wrap; word-break:break-word; }
+.ln.c.on { background:#3A3A5C; border-left-color:#5FC2BF; }
+.ln.p.on { background:var(--teal-lt); border-left-color:var(--teal); font-weight:bold; }
+.ln.c.done { color:#8C8CA6; } .ln.c.done span { color:inherit; } .ln.p.done { color:#8A949C; }
+.kw{color:#D19BE0;} .str{color:#F0A77F;} .com{color:#7FBF7F;} .num{color:#B5CEA8;}
+/* flow diagram */
+.flow { display:flex; align-items:stretch; gap:0; flex-wrap:wrap; row-gap:14px; }
+.node { border:3px solid var(--line); background:var(--bg); border-radius:14px; padding:10px 14px; min-width:120px; text-align:center; transition:all .3s; }
+.node .t { font-weight:bold; font-size:1.05rem; }
+.node .h { font-family:"Courier New",monospace; font-size:0.8rem; color:var(--muted); margin-top:4px; }
+.node.on { border-color:var(--teal); background:var(--teal-lt); box-shadow:0 0 0 5px rgba(14,124,123,.18); }
+.node.bad { border-color:var(--coral); background:var(--coral-lt); }
+.node.dim { opacity:.35; }
+.arr { align-self:center; font-size:1.6rem; color:var(--muted); padding:0 8px; }
+.status { margin-top:16px; padding:14px 18px; border-radius:12px; background:var(--bg); font-size:1.1rem; min-height:56px; }
+.status.good { background:var(--teal-lt); color:#0a5e5d; }
+.status.bad { background:var(--coral-lt); color:#a53a1b; }
+.note { background:var(--amber-lt); border-radius:12px; padding:14px 18px; font-size:1rem; margin-top:10px; }
+.hgrid { display:inline-grid; gap:3px; }
+.hcell { border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:bold; color:#fff; font-family:"Courier New",monospace; }
+.axis { font-family:"Courier New",monospace; font-size:0.8rem; color:var(--muted); display:flex; align-items:center; justify-content:center; }
+.big { font-size:2.4rem; font-weight:bold; font-family:"Courier New",monospace; }
+.pill { display:inline-block; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.9rem; }
+.keys { position:fixed; right:18px; bottom:14px; font-size:0.8rem; color:var(--muted); background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 10px; }
+.vec { display:inline-grid; grid-template-columns:repeat(6,18px); gap:2px; vertical-align:middle; }
+.vec div { width:18px; height:18px; border-radius:3px; }
+/* stepper */
+.stepper { border:2px solid var(--line); border-radius:18px; padding:18px 22px; margin:14px 0 26px; background:#fff; }
+.st-head { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+.st-head .st-count { color:var(--muted); margin-left:6px; }
+.st-body { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr); gap:22px; align-items:start; }
+@media (max-width:1100px) { .st-body { grid-template-columns:1fr; } }
+.st-vis { min-height:380px; }
+.st-say { background:var(--teal-lt); color:#0a5e5d; font-weight:bold; font-size:1.2rem; border-radius:14px; padding:16px 18px; line-height:1.4; }
+.st-ex { margin-top:12px; background:var(--amber-lt); border-radius:14px; padding:12px 16px; font-size:1.02rem; }
+.st-ex b { display:block; font-size:0.8rem; letter-spacing:2px; text-transform:uppercase; color:var(--amber); margin-bottom:4px; }
+.st-code { margin-top:12px; background:var(--code); border-radius:14px; padding:10px 0 12px; font-family:"Courier New","DejaVu Sans Mono",monospace; font-size:0.9rem; color:#E4E4EF; }
+.st-code .hd { font-family:Calibri,Carlito,sans-serif; font-size:0.72rem; letter-spacing:2px; text-transform:uppercase; color:#9A9AB0; font-weight:bold; padding:4px 16px 8px; }
+.st-code .l { padding:4px 16px; white-space:pre-wrap; border-left:6px solid transparent; }
+.st-code .l.on { background:#3A3A5C; border-left-color:#5FC2BF; }
+.st-code .l.future { color:#6A6A84; } .st-code .l.future span { color:inherit !important; }
+.vn { display:inline-grid; gap:3px; }
+.vn div { border-radius:6px; display:flex; align-items:center; justify-content:center; font-family:"Courier New",monospace; font-weight:bold; font-size:0.82rem; border:1px solid #E1E5E8; }
+.bars { display:flex; gap:10px; align-items:flex-end; }
+.bars .b { text-align:center; width:52px; }
+.bars .bt { display:flex; align-items:flex-end; justify-content:center; }
+.bars .bf { width:36px; border-radius:6px 6px 0 0; transition:height .4s; }
+.bars .bv { font-size:0.75rem; color:var(--muted); height:20px; }
+.bars .bl { font-weight:bold; font-family:"Courier New",monospace; margin-top:4px; }
+.vbox { border:3px solid var(--line); border-radius:14px; padding:10px 12px; background:#fff; display:inline-block; vertical-align:top; transition:all .3s; }
+.vbox .vt { font-size:0.8rem; font-weight:bold; letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
+.vbox.on { border-color:var(--teal); box-shadow:0 0 0 5px rgba(14,124,123,.15); }
+.vbox.dim { opacity:.28; }
+.varr { display:inline-flex; align-items:center; font-size:1.8rem; color:var(--muted); padding:0 6px; align-self:center; }
+.vrow { display:flex; align-items:center; flex-wrap:wrap; gap:6px; row-gap:12px; }
+.picker { display:inline-flex; border:2px solid var(--line); border-radius:12px; overflow:hidden; }
+.picker button { border:none; border-radius:0; width:54px; font-family:"Courier New",monospace; font-size:1.2rem; padding:10px 0; }
+.picker button + button { border-left:2px solid var(--line); }
+.picker button.on { background:var(--purple); color:#fff; }
+.tokrow2 { display:flex; gap:10px; flex-wrap:wrap; }
+.tk2 { min-width:70px; padding:12px 10px; text-align:center; border:3px solid var(--line); border-radius:12px; font-weight:bold; font-size:1.3rem; background:#fff; transition:all .3s; }
+.tk2 small { display:block; font-weight:normal; font-size:0.7rem; color:var(--muted); font-family:"Courier New",monospace; }
+.legend { color:var(--muted); font-size:0.9rem; margin-top:8px; }
+
+/* presenter bar */
+.pbar { position:sticky; top:0; z-index:50; display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:rgba(255,255,255,.96); padding:10px 0 12px; margin:-6px 0 12px; border-bottom:2px solid var(--line); }
+.pbar button { padding:8px 14px; font-size:0.9rem; border-radius:10px; }
+.pbar button.sec b { color:var(--teal); margin-right:4px; }
+.pbar button.on { background:var(--teal); border-color:var(--teal); color:#fff; }
+.pbar button.on b { color:#fff; }
+.pbar .sp { flex:1; }
+.st-head { position:relative; }
+
+sub { font-size:0.62em; color:inherit; opacity:.75; margin-left:1px; }
+.stepper { scroll-margin-top:84px; }
+
+svg text { font-family:Calibri, Carlito, sans-serif; }
+.phase { display:flex; gap:10px; margin:8px 0 14px; flex-wrap:wrap; }
+.phase div { padding:8px 16px; border-radius:22px; font-weight:bold; background:var(--bg); color:#9AA3AA; border:2px solid transparent; }
+.phase div.on.p0 { background:var(--coral-lt); color:var(--coral); border-color:var(--coral); }
+.phase div.on.p1 { background:var(--teal-lt); color:var(--teal); border-color:var(--teal); }
+.phase div.on.p2 { background:var(--purple-lt); color:var(--purple); border-color:var(--purple); }
+.scorecard { display:flex; gap:30px; flex-wrap:wrap; }
+.sc { background:var(--bg); border-radius:14px; padding:18px 22px; min-width:300px; }
+.sc .v { font-size:2.6rem; font-weight:bold; font-family:"Courier New",monospace; }
+#alg .st-body { grid-template-columns:1fr; }
+#alg .st-side { order:-1; display:grid; grid-template-columns:1.4fr 1fr; gap:14px; }
+#alg .st-side .st-ex { margin-top:0; }
+.why { background:var(--teal-lt); border-radius:16px; padding:18px 24px; margin-bottom:24px; font-size:1.05rem; }
+</style></head>
+<body><div class="wrap">
+<div class="kicker">TARA · Week 4 · Section 3</div>
+<h1>The induction algorithm — one position at a time</h1>
+<div class="sub">Two heads, two layers: <b style="color:var(--coral)">0.7 tags</b> every token with “who came before me”, <b style="color:var(--teal)">1.4 searches</b> for a matching tag, then <b style="color:var(--purple)">copies</b> what it found. Keys: → next step · ← back Axis labels like B<sub>5</sub> mean token B at position 5.</div>
+
+<div class="why"><b>Why care?</b> “Last time I saw this token, what came next? Do that again” is in-context learning in its simplest form — the model completes a pattern it has never seen, with no training. It is the first full circuit taught in mech interp because we can name both heads and prove it.</div>
+
+<div class="ctrl"><label>Sequence (both sections):</label>
+  <div class="seg" id="seqSeg">
+    <button data-seq="ABCDABCD" class="on">A B C D · repeat</button>
+    <button data-seq="ABABABAB">A B · repeat</button>
+    <button data-seq="ABCABCAB">A B C · repeat</button>
+    <button data-seq="ABCDEABCDE">A B C D E · repeat</button>
+  </div>
+</div>
+<h2>1 · The algorithm — tag, search, copy</h2>
+<div id="alg"></div>
+<h2>2 · Finding it in the model — patterns and the detector</h2>
+<div id="det"></div>
+<div class="note">The third common head type — <b>first-token / “resting” heads</b> — attends to position 0 (BOS) when there is nothing useful to do. In the real toy model, 1.4 and 1.10 rest on BOS before the repeat; this idealized version just spreads its attention instead.</div>
+<div class="note" style="background:var(--bg);margin-top:18px"><b>Read more:</b> <a href="https://www.lesswrong.com/posts/TvrfY4c9eaGLeyDkE/induction-heads-illustrated" target="_blank">Induction heads — illustrated</a> · <a href="https://transformer-circuits.pub/2022/in-context-learning-and-induction-heads/index.html" target="_blank">In-context learning and induction heads</a> · <a href="https://arxiv.org/abs/2012.15832" target="_blank">Shortformer paper</a></div>
+</div>
+<script>// ---------------- shared deterministic toy model (same recipe in every TARA Week 4 page) ----------------
+function seededRand(seed) { let s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+function matmul(A, B) { const r = A.length, inner = A[0].length, c = B[0].length; const out = Array.from({ length: r }, () => Array(c).fill(0)); for (let i = 0; i < r; i++) for (let j = 0; j < c; j++) { let s = 0; for (let k = 0; k < inner; k++) s += A[i][k] * B[k][j]; out[i][j] = s; } return out; }
+function transpose(A) { return A[0].map((_, j) => A.map(row => row[j])); }
+function onehot(i, n) { const v = Array(n).fill(0); v[i] = 1; return v; }
+function eye(n) { return Array.from({ length: n }, (_, i) => onehot(i, n)); }
+function softmax(arr) { const m = Math.max(...arr.filter(v => v > -1e8)); const ex = arr.map(v => v <= -1e8 ? 0 : Math.exp(v - m)); const s = ex.reduce((a, b) => a + b, 0); return ex.map(v => v / s); }
+function randomOrthogonal(n, seed) { const rand = seededRand(seed); const cols = []; for (let j = 0; j < n; j++) { let v = Array.from({ length: n }, () => rand() * 2 - 1); for (const u of cols) { const dot = v.reduce((s, vi, i) => s + vi * u[i], 0); v = v.map((vi, i) => vi - dot * u[i]); } const norm = Math.sqrt(v.reduce((s, vi) => s + vi * vi, 0)); v = v.map(vi => vi / norm); cols.push(v); } return cols; }
+function argmax(a) { let b = 0; for (let i = 1; i < a.length; i++) if (a[i] > a[b]) b = i; return b; }
+const VOCAB = ['A', 'B', 'C', 'D', 'E', 'F'], D = 6;
+const WE = randomOrthogonal(D, 1234), WU = transpose(WE), WPOS = randomOrthogonal(D, 555);
+const Z0_SCALE = 0.15, Z1_BOOST = 3.0;
+function prevTokenPattern(n) { return Array.from({ length: n }, (_, i) => softmax(Array.from({ length: n }, (_, j) => j > i ? -1e9 : (j === i - 1 ? 6 : -2)))); }
+function inductionPattern(n, ids, prevAblated) {
+  return Array.from({ length: n }, (_, i) => {
+    const q = WE[ids[i]];
+    return softmax(Array.from({ length: n }, (_, j) => {
+      if (j > i) return -1e9;
+      if (j === 0 || prevAblated) return 0;
+      const k = WE[ids[j - 1]]; let d = 0; for (let t = 0; t < D; t++) d += q[t] * k[t]; return d * 8;
+    }));
+  });
+}
+// ablate: 'none' | 'prev' (zero layer-0 head output) | 'induction' (zero layer-1 head output)
+function runModel(seq, ablate = 'none') {
+  const ids = seq.map(t => VOCAB.indexOf(t)), n = ids.length;
+  const embed = ids.map(id => WE[id].slice());
+  const pos = ids.map((_, i) => WPOS[i % D].slice());
+  const residPre0 = embed.map((r, i) => r.map((v, d) => v + pos[i][d]));
+  const pattern0 = prevTokenPattern(n);
+  const s0 = ablate === 'prev' ? 0 : Z0_SCALE;
+  const z0 = pattern0.map(row => { const o = Array(D).fill(0); row.forEach((w, j) => { for (let d = 0; d < D; d++) o[d] += w * residPre0[j][d] * s0; }); return o; });
+  const residPost0 = residPre0.map((r, i) => r.map((v, d) => v + z0[i][d]));
+  const pattern1 = inductionPattern(n, ids, ablate === 'prev');
+  const s1 = ablate === 'induction' ? 0 : Z1_BOOST;
+  const z1 = pattern1.map(row => { const o = Array(D).fill(0); row.forEach((w, j) => { for (let d = 0; d < D; d++) o[d] += w * embed[j][d] * s1; }); return o; });
+  const residPost1 = residPost0.map((r, i) => r.map((v, d) => v + z1[i][d]));
+  const logits = matmul(residPost1, WU);
+  return { ids, n, embed, pos, residPre0, pattern0, z0, residPost0, pattern1, z1, residPost1, logits, pred: logits.map(r => VOCAB[argmax(r)]) };
+}
+function diagMean(p, off) { const v = []; for (let i = 0; i < p.length; i++) { const j = i + off; if (j >= 0 && j < p.length) v.push(p[i][j]); } return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; }
+
+// ---------------- rendering helpers ----------------
+// token + position label, e.g. B with a small 5 = token B at position 5
+const PL = (t, i) => `${t}<sub>${i}</sub>`;
+function rampColor(w, base = [14, 124, 123]) { const t = Math.max(0, Math.min(1, w)); return `rgb(${Math.round(255 - t * (255 - base[0]))},${Math.round(255 - t * (255 - base[1]))},${Math.round(255 - t * (255 - base[2]))})`; }
+function divColor(v, bound = 1) { const t = Math.max(-1, Math.min(1, v / bound)); if (t >= 0) return rampColor(t); return `rgb(255,${Math.round(255 + t * (255 - 87))},${Math.round(255 + t * (255 - 46))})`; }
+const RGB = { teal: [14, 124, 123], coral: [228, 87, 46], purple: [108, 74, 182], amber: [183, 121, 31] };
+function vecHTML(v, bound = 1) { return `<div class="vec">${v.map(x => `<div style="background:${divColor(x, bound)}" title="${x.toFixed(3)}"></div>`).join('')}</div>`; }
+// heatmap with axis labels; opts: {cell, color, rowLabels, colLabels, vals, highlightRow, masked}
+function heatHTML(M, o = {}) {
+  const n = M.length, m = M[0].length, cell = o.cell || 40, col = RGB[o.color || 'teal'];
+  let h = `<div class="hgrid" style="grid-template-columns:${o.rowLabels ? '44px ' : ''}repeat(${m},${cell}px)">`;
+  if (o.colLabels) { if (o.rowLabels) h += '<div></div>'; o.colLabels.forEach(l => h += `<div class="axis" style="height:26px">${l}</div>`); }
+  M.forEach((row, i) => {
+    if (o.rowLabels) h += `<div class="axis">${o.rowLabels[i]}</div>`;
+    row.forEach((w, j) => {
+      const masked = o.causal && j > i;
+      const bg = masked ? '#FFFFFF' : (o.diverging ? divColor(w, o.bound || 1) : rampColor(w, col));
+      const ring = (o.highlightRow === i || o.highlightCol === j) ? 'outline:3px solid #1A1A1A;outline-offset:-2px;' : '';
+      const txt = o.vals && !masked && Math.abs(w) >= (o.valMin ?? 0.2) ? (Math.abs(w) >= 10 ? w.toFixed(0) : (+w.toFixed(o.dp ?? 1) === 0 ? (0).toFixed(o.dp ?? 1) : w.toFixed(o.dp ?? 1))) : '';
+      h += `<div class="hcell" data-i="${i}" data-j="${j}" style="width:${cell}px;height:${cell}px;background:${bg};${masked ? 'border:1px solid #EEF0F2;' : ''}${ring}color:${(o.diverging ? Math.abs(w) : w) > 0.55 ? '#fff' : '#1A1A1A'}">${txt}</div>`;
+    });
+  });
+  return h + '</div>';
+}
+// syntax highlight a python line
+function hl(line) {
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  let code = line, com = '';
+  const ci = line.indexOf('#'); if (ci >= 0) { code = line.slice(0, ci); com = line.slice(ci); }
+  let out = esc(code).replace(/("[^"]*"|'[^']*')|\b(def|return|for|in|if|lambda|None|True|False)\b|\b(\d+(?:\.\d+)?)\b/g, (m, s, k, n) => s ? `<span class="str">${s}</span>` : k ? `<span class="kw">${k}</span>` : `<span class="num">${n}</span>`);
+  return out + (com ? `<span class="com">${esc(com)}</span>` : '');
+}
+// build a code/pseudocode pair. rows: [{code:'...', say:'...'}]; returns setter(activeIdxs, doneUpTo)
+function codePair(el, title, rows) {
+  el.classList.add('codepair');
+  el.innerHTML = `<div class="hd c">${title}</div><div class="hd p">what it does</div>` +
+    rows.map((r, i) => `<div class="ln c" data-i="${i}">${r.code ? hl(r.code) : '&nbsp;'}</div><div class="ln p" data-i="${i}">${r.say || '&nbsp;'}</div>`).join('') +
+    `<div class="c pad"></div><div class="p pad"></div>`;
+  return (on = [], doneBelow = -1) => el.querySelectorAll('.ln').forEach(d => { const i = +d.dataset.i; d.classList.toggle('on', on.includes(i)); d.classList.toggle('done', i < doneBelow && !on.includes(i)); });
+}
+
+// ---------------- Stepper: every section = ① Intuition steps, then ② Code steps, one shared visual ----------------
+const STEPPERS = [];
+function Stepper(root, cfg) {
+  // cfg: { intuition:[{say, ex, v}], code:{file, lines:[...], steps:[{a:[...], say, v}]}, render(v, mode, k, vis) }
+  if (typeof root === 'string') root = document.getElementById(root);
+  root.classList.add('stepper');
+  const hasCode = !!cfg.code;
+  root.innerHTML = `<div class="st-head">
+      <div class="seg st-modes"><button data-m="i" class="on">① Intuition</button>${hasCode ? '<button data-m="c">② Code</button>' : ''}</div>
+      <button class="st-back">◀ Back</button><button class="primary st-next">Next ▶</button><span class="st-count mono"></span></div>
+    <div class="st-body"><div class="st-vis"></div><div class="st-side"><div class="st-say"></div><div class="st-ex"></div><div class="st-code"></div></div></div>`;
+  const q = s => root.querySelector(s);
+  const self = { mode: 'i', k: 0, root };
+  const steps = () => self.mode === 'i' ? cfg.intuition : cfg.code.steps;
+  self.render = () => {
+    const st = steps()[self.k];
+    root.querySelectorAll('.st-modes button').forEach(b => b.classList.toggle('on', b.dataset.m === self.mode));
+    q('.st-say').innerHTML = st.say;
+    q('.st-ex').innerHTML = st.ex ? `<b>Example</b> ${st.ex}` : '';
+    q('.st-ex').style.display = st.ex ? 'block' : 'none';
+    if (self.mode === 'c') {
+      const last = Math.max(...st.a);
+      q('.st-code').style.display = 'block';
+      q('.st-code').innerHTML = `<div class="hd">${cfg.code.file}</div>` + cfg.code.lines.map((l, i) => `<div class="l ${st.a.includes(i) ? 'on' : ''} ${i > last ? 'future' : ''}">${l ? hl(l.replace(/(\S)\s{2,}#/, '$1  #')) : '&nbsp;'}</div>`).join('');
+    } else q('.st-code').style.display = 'none';
+    q('.st-count').textContent = `${self.mode === 'i' ? 'intuition' : 'code'} · step ${self.k + 1} / ${steps().length}`;
+    q('.st-back').disabled = self.k === 0 && self.mode === 'i';
+    q('.st-next').disabled = self.k === steps().length - 1 && (self.mode === 'c' || !hasCode);
+    q('.st-next').textContent = (self.k === steps().length - 1 && self.mode === 'i' && hasCode) ? 'Go to code ▶' : 'Next ▶';
+    cfg.render(st.v || {}, self.mode, self.k, q('.st-vis'));
+  };
+  self.next = () => { if (self.k < steps().length - 1) self.k++; else if (self.mode === 'i' && hasCode) { self.mode = 'c'; self.k = 0; } self.render(); };
+  self.back = () => { if (self.k > 0) self.k--; else if (self.mode === 'c') { self.mode = 'i'; self.k = cfg.intuition.length - 1; } self.render(); };
+  q('.st-next').onclick = self.next; q('.st-back').onclick = self.back;
+  root.querySelectorAll('.st-modes button').forEach(b => b.onclick = () => { self.mode = b.dataset.m; self.k = 0; self.render(); });
+  STEPPERS.push(self); self.render();
+  return self;
+}
+// ---------------- presenter mode: one section at a time, tabs, keys, text size, full screen ----------------
+let ACTIVE_ST = null;
+function nearestStepper() {
+  if (ACTIVE_ST && ACTIVE_ST.root.offsetParent !== null) return ACTIVE_ST;
+  const mid = window.innerHeight / 2; let best = STEPPERS[0], bd = 1e9;
+  STEPPERS.forEach(s => { const r = s.root.getBoundingClientRect(); const d = Math.abs((r.top + r.bottom) / 2 - mid); if (r.bottom > 0 && r.top < window.innerHeight && d < bd) { bd = d; best = s; } });
+  return best;
+}
+function setFont(px) { document.documentElement.style.fontSize = px + 'px'; try { localStorage.setItem('tara-font', px); } catch (e) {} }
+function curFont() { return parseFloat(getComputedStyle(document.documentElement).fontSize); }
+window.addEventListener('load', () => {
+  try { const f = localStorage.getItem('tara-font'); if (f) setFont(+f); } catch (e) {}
+  const secs = STEPPERS.map(st => { let h = st.root.previousElementSibling; while (h && h.tagName !== 'H2') h = h.previousElementSibling; return { st, h }; });
+  const wrap = document.querySelector('.wrap'); if (!wrap || !secs.length) return;
+  const bar = document.createElement('div'); bar.className = 'pbar';
+  bar.innerHTML = (secs.length > 1 ? secs.map((s, i) => `<button class="sec" data-i="${i}"><b>${i + 1}</b> ${(s.h ? s.h.textContent : 'Section ' + (i + 1)).replace(/^\s*\d+\s*·\s*/, '').split(/ — | – /)[0]}</button>`).join('') : '') +
+    `<span class="sp"></span><button data-a="-" title="smaller text (−)">A−</button><button data-a="+" title="bigger text (+)">A+</button><button data-a="f" title="full screen (F)">⛶</button>` + (secs.length > 1 ? `<button data-a="all" title="show every section (0)">all</button>` : '');
+  const sub = wrap.querySelector('.sub'); (sub || wrap.firstChild).after(bar);
+  let all = secs.length < 2;
+  window.showSection = i => {
+    ACTIVE_ST = all ? null : secs[i].st;
+    secs.forEach((s, j) => { const on = all || j === i; s.st.root.style.display = on ? '' : 'none'; if (s.h) s.h.style.display = on ? '' : 'none'; });
+    bar.querySelectorAll('.sec').forEach(b => b.classList.toggle('on', !all && +b.dataset.i === i));
+    const ab = bar.querySelector('[data-a="all"]'); if (ab) ab.classList.toggle('on', all);
+    if (!all) { const top = bar.getBoundingClientRect().top + window.scrollY; if (window.scrollY > top) window.scrollTo(0, top); }
+  };
+  bar.onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.i != null) { all = false; showSection(+b.dataset.i); }
+    else if (b.dataset.a === '+') setFont(curFont() + 2);
+    else if (b.dataset.a === '-') setFont(Math.max(14, curFont() - 2));
+    else if (b.dataset.a === 'f') { if (!document.fullscreenElement) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
+    else if (b.dataset.a === 'all') { all = !all; showSection(Math.max(0, secs.findIndex(s => s.st === ACTIVE_ST))); }
+  };
+  showSection(0);
+  window._secs = secs.length;
+  const kh = document.createElement('div'); kh.className = 'keys'; kh.textContent = '→ next · ← back' + (secs.length > 1 ? ' · 1–' + secs.length + ' section' : '') + ' · C intuition/code · + − text size · F full screen'; document.body.appendChild(kh);
+});
+document.addEventListener('keydown', e => {
+  if (!STEPPERS.length || ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+  const best = nearestStepper();
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); best.next(); }
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); best.back(); }
+  else if (/^[1-9]$/.test(e.key) && window.showSection && +e.key <= (window._secs || 0) && window._secs > 1) window.showSection(+e.key - 1);
+  else if (e.key === '+' || e.key === '=') setFont(curFont() + 2);
+  else if (e.key === '-') setFont(Math.max(14, curFont() - 2));
+  else if (e.key === 'f' || e.key === 'F') { if (!document.fullscreenElement) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
+  else if (e.key === 'c' || e.key === 'C') { best.mode = best.mode === 'i' ? 'c' : 'i'; best.k = 0; best.render(); }
+});
+// numbers-in-cells vector (for intuition: show actual values)
+function vecNum(v, o = {}) {
+  const c = o.cell || 46, b = o.bound || 1;
+  return `<div class="vn" style="grid-template-columns:repeat(${v.length},${c}px)">${v.map((x, i) => `<div style="width:${c}px;height:${c}px;background:${o.plain ? '#fff' : divColor(x, b)};color:${Math.abs(x) / b > 0.55 && !o.plain ? '#fff' : '#1A1A1A'};${o.hi && o.hi(i) ? 'outline:3px solid #1A1A1A;outline-offset:-2px;' : ''}">${o.hide ? '' : (+x.toFixed(o.dp ?? 1) === 0 ? '0' : x.toFixed(o.dp ?? 1))}</div>`).join('')}</div>`;
+}
+// vertical bars for logits/scores
+function barsHTML(vals, labels, o = {}) {
+  const mx = o.max || Math.max(...vals.map(Math.abs), 0.1), H = o.h || 150, win = o.win ?? argmax(vals);
+  return `<div class="bars" style="height:${H + 60}px">${vals.map((v, i) => `<div class="b"><div class="bv mono">${(+v.toFixed(o.dp ?? 1) === 0 ? 0 : v).toFixed(o.dp ?? 1)}</div><div class="bt" style="height:${H}px"><div class="bf" style="height:${Math.max(3, Math.abs(v) / mx * H)}px;background:${i === win ? (o.col || 'var(--teal)') : v < 0 ? 'var(--coral-lt)' : '#C9D0D5'}"></div></div><div class="bl">${labels[i]}</div></div>`).join('')}</div>`;
+}
+function box(title, inner, o = {}) { return `<div class="vbox ${o.cls || ''}" style="${o.style || ''}"><div class="vt" style="color:${o.col || 'var(--muted)'}">${title}</div>${inner}</div>`; }
+const AR = '<div class="varr">→</div>';
+
+let SEQ = 'ABCDABCD'.split(''), M = runModel(SEQ), period = 4;
+let aPos = 0, aPh = 0, aKey = '';
+function match(i) { const row = M.pattern1[i]; let j = argmax(row); return row[j] > 0.6 && j !== i ? { j, w: row[j] } : null; }
+function drawSVG(pos, phase, allTags) {
+  const n = SEQ.length, sp = Math.min(180, 1500 / n), x0 = 90, y = 120;
+  const X = i => x0 + i * sp;
+  let s = `<defs>${[['c', '#E4572E'], ['t', '#0E7C7B'], ['p', '#6C4AB6'], ['g', '#C9D0D5']].map(([k, c]) => `<marker id="m${k}" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L12,6 L0,12 z" fill="${c}"/></marker>`).join('')}</defs>`;
+  const upto = allTags ? n - 1 : pos;
+  for (let i = 1; i < n; i++) {
+    const cur = i === pos && phase === 0 && !allTags; if (i > upto) continue;
+    s += `<path d="M ${X(i - 1) + 10} ${y - 44} Q ${(X(i - 1) + X(i)) / 2} ${y - 100} ${X(i) - 10} ${y - 46}" fill="none" stroke="${cur || (allTags && phase === 0) ? '#E4572E' : '#D5DADE'}" stroke-width="${cur ? 5 : 3}" marker-end="url(#m${cur || (allTags && phase === 0) ? 'c' : 'g'})"/>`;
+  }
+  const mt = match(pos);
+  if (phase >= 1 && mt) {
+    s += `<path d="M ${X(mt.j)} ${y + 118} C ${X(mt.j)} ${y + 200}, ${X(pos)} ${y + 200}, ${X(pos)} ${y + 122}" fill="none" stroke="#0E7C7B" stroke-width="6" marker-end="url(#mt)"/>`;
+    s += `<text x="${(X(mt.j) + X(pos)) / 2}" y="${y + 200}" text-anchor="middle" font-size="26" font-weight="bold" fill="#0E7C7B">tag matches → attention ${(mt.w * 100).toFixed(0)}%</text>`;
+  }
+  if (phase >= 1) { const qx = Math.min(Math.max(X(pos), 250), 1640 - 250); s += `<rect x="${qx - 230}" y="0" width="460" height="46" rx="23" fill="#DCEEED" stroke="#0E7C7B" stroke-width="3"/><text x="${qx}" y="31" text-anchor="middle" font-size="26" font-weight="bold" fill="#0E7C7B">Q: who came after “${SEQ[pos]}”?</text>`; }
+  if (phase === 2 && mt) s += `<path d="M ${X(mt.j) + 30} ${y - 30} C ${X(mt.j) + 120} ${y - 64}, ${X(pos) + sp - 120} ${y - 64}, ${X(pos) + sp - 30} ${y - 30}" fill="none" stroke="#6C4AB6" stroke-width="5" stroke-dasharray="12 8" marker-end="url(#mp)"/>`;
+  SEQ.forEach((t, i) => {
+    const isPos = i === pos && !(allTags && phase === 0), isSrc = mt && phase >= 1 && i === mt.j;
+    s += `<circle cx="${X(i)}" cy="${y}" r="40" fill="${isSrc ? '#DCEEED' : '#fff'}" stroke="${isPos ? '#1A1A1A' : isSrc ? '#0E7C7B' : '#C9D0D5'}" stroke-width="${isPos || isSrc ? 4 : 2}"/>`;
+    s += `<text x="${X(i)}" y="${y + 11}" text-anchor="middle" font-size="34" font-weight="bold" fill="#1A1A1A">${t}</text>`;
+    if (i >= 1 && i <= upto) {
+      const hot = (i === pos && phase === 0) || isSrc || (allTags && phase === 0);
+      s += `<rect x="${X(i) - 62}" y="${y + 56}" width="124" height="40" rx="20" fill="${hot ? '#FBE4DC' : '#FFF6F2'}" stroke="${hot ? '#E4572E' : '#F2C3B2'}" stroke-width="${hot ? 3 : 1.5}"/>`;
+      s += `<text x="${X(i)}" y="${y + 84}" text-anchor="middle" font-size="22" fill="#E4572E" font-weight="${hot ? 'bold' : 'normal'}">after ${SEQ[i - 1]}</text>`;
+    }
+    s += `<text x="${X(i)}" y="${y + 116}" text-anchor="middle" font-size="18" fill="#8A949C" font-family="Courier New">pos ${i}</text>`;
+  });
+  if (phase === 2) { const px = X(pos) + sp / 2, pr = M.pred[pos]; s += `<rect x="${px + sp / 2 - 44}" y="${y - 30}" width="88" height="60" rx="12" fill="${mt ? '#6C4AB6' : '#F2F4F5'}" stroke="${mt ? '#6C4AB6' : '#8A949C'}" stroke-width="3" stroke-dasharray="${mt ? '' : '8 6'}"/><text x="${px + sp / 2}" y="${y + 11}" text-anchor="middle" font-size="32" font-weight="bold" fill="${mt ? '#fff' : '#4F5A63'}">${mt ? pr : '?'}</text>`; }
+  return `<svg viewBox="0 0 1640 330" width="100%">${s}</svg>`;
+}
+function statusHTML(pos, phase) {
+  const mt = match(pos), t = SEQ[pos]; let cls = '', h = `<b>Position ${pos}</b> (“${t}”) — `;
+  if (phase === 0) h += pos === 0 ? 'the first token has nothing before it, so no tag.' : `head 0.7 attends one step back and writes <b style="color:var(--coral)">“after ${SEQ[pos - 1]}”</b> here.`;
+  else if (phase === 1) { if (mt) { cls = 'good'; h += `head 1.4 asks “who came after ${t}?”. Position ${mt.j}’s tag says “after ${SEQ[mt.j - 1]}” — a match, ${(mt.w * 100).toFixed(0)}% attention.`; } else { cls = 'bad'; h += `head 1.4 asks “who came after ${t}?” — no earlier “${t}” yet, so no tag matches. Attention stays spread out.`; } }
+  else { const nx = SEQ[pos + 1]; if (mt) { cls = 'good'; h += `the head copies “${SEQ[mt.j]}” → prediction <b>${M.pred[pos]}</b>${nx ? (M.pred[pos] === nx ? ' ✓ matches the real next token.' : ` (real next: ${nx})`) : '.'}`; } else { cls = 'bad'; h += `nothing to copy — the prediction here is a guess (${M.pred[pos]}).`; } }
+  return `<div class="status ${cls}">${h}</div>`;
+}
+const firstRep = () => period; // first position of the repeat
+function algRender(v, mode, k, el) {
+  const key = mode + k + SEQ.join(''); if (key !== aKey) { aKey = key; aPos = v.pos === 'rep' ? firstRep() + 1 : v.pos === 'last' ? SEQ.length - 2 : (v.pos ?? 0); aPh = v.ph ?? 0; }
+  aPos = Math.min(aPos, SEQ.length - 1);
+  let h = `<div class="phase"><div class="p0 ${aPh === 0 ? 'on' : ''}">① layer 0 · tag</div><div class="p1 ${aPh === 1 ? 'on' : ''}">② layer 1 · search</div><div class="p2 ${aPh === 2 ? 'on' : ''}">③ layer 1 · copy</div></div>`;
+  h += drawSVG(aPos, aPh, v.all);
+  h += statusHTML(aPos, aPh);
+  if (v.free) h += `<div class="ctrl" style="margin-top:12px"><label>Position:</label><div class="seg" id="posSeg">${SEQ.map((t, i) => `<button data-p="${i}" class="${i === aPos ? 'on' : ''}">${PL(t, i)}</button>`).join('')}</div><label>Step:</label><div class="seg" id="phSeg">${['tag', 'search', 'copy'].map((t, i) => `<button data-h="${i}" class="${i === aPh ? 'on' : ''}">${t}</button>`).join('')}</div></div>`;
+  el.innerHTML = h;
+  el.querySelectorAll('#posSeg button').forEach(b => b.onclick = () => { aPos = +b.dataset.p; algRender(v, mode, k, el); });
+  el.querySelectorAll('#phSeg button').forEach(b => b.onclick = () => { aPh = +b.dataset.h; algRender(v, mode, k, el); });
+}
+const algS = Stepper('alg', {
+  render: algRender,
+  intuition: [
+    { say: 'Goal: “Last time I saw this token, what came next? Predict that again.” The model can do this for sequences it has never seen.', ex: '“Mr Dursley was proud… Mr” → “Dursley”. Here: A B C D, then again A B C → D.', v: { pos: 'last', ph: 2 } },
+    { say: 'Step ① Tag (layer 0, head 0.7): every position looks one step back and writes “I come after X” into itself.', ex: 'At position 1 (B): tag “after A”.', v: { pos: 1, ph: 0 } },
+    { say: 'It does this at EVERY position, repeat or not. Now each token carries a tag with its predecessor.', v: { pos: 1, ph: 0, all: 1 } },
+    { say: 'Step ② Search (layer 1, head 1.4): the current token asks “who came after me last time?” and looks for a matching tag.', ex: 'First half: no earlier copy of this token exists — no match, attention spreads out.', v: { pos: 2, ph: 1 } },
+    { say: 'In the repeat, a tag matches! The head attends almost entirely to that position.', ex: 'At the second B: “who came after B?” → the tag “after B” sits on C.', v: { pos: 'rep', ph: 1 } },
+    { say: 'Step ③ Copy: read the token at the attended position and push it into the prediction.', ex: 'Attended to C → predict C. Correct.', v: { pos: 'rep', ph: 2 } },
+    { say: 'Your turn: pick any position and step. Try the other sequences at the top — the same three steps work for any repeat length.', v: { pos: 'rep', ph: 2, free: 1 } },
+  ],
+  code: { file: 'the algorithm, as pseudocode', lines: ['# layer 0 · head 0.7 (previous-token)', 'for i in positions:', '    tag[i] = token[i - 1]            # "I come after X"', '# layer 1 · head 1.4 (induction)', 'for i in positions:', '    query = token[i]                 # "who came after me?"', '    j = argmax(tag[:i+1] == query)   # search: where to look', '    predict[i] = token[j]            # copy: what to move'],
+    steps: [
+      { a: [1, 2], say: 'Layer 0 runs first, at all positions: write the tag.', v: { pos: 1, ph: 0, all: 1 } },
+      { a: [5], say: 'Layer 1’s query is just the current token.', v: { pos: 'rep', ph: 1 } },
+      { a: [6], say: 'Search = match the query against every earlier tag → attention. (Section 5 calls this job the QK circuit.)', v: { pos: 'rep', ph: 1 } },
+      { a: [7], say: 'Copy = move the attended token into the logits. (Section 5: the OV circuit.)', v: { pos: 'rep', ph: 2, free: 1 } },
+    ] },
+});
+// ============================================================ 2. detector
+function detRender(v, mode, k, el) {
+  const L = SEQ.map(PL), off = 1 - period, S = v.s ?? 0;
+  const hl0 = S === 2 ? (i, j) => j === i - 1 : null;
+  const cellsOn = (P, o) => P.map((r, i) => r.map((x, j) => j === i + o));
+  const mk = (P, col, o) => { let hh = heatHTML(P, { cell: 42, color: col, rowLabels: L, colLabels: L, vals: true, valMin: 0.3, causal: true }); return hh; };
+  let h = `<div class="vrow" style="align-items:flex-start;gap:18px">`;
+  h += box('layer 0 · blocks.0.attn.hook_pattern', mk(M.pattern0, 'coral'), { col: 'var(--coral)', cls: S === 0 ? 'on' : '' });
+  if (S >= 1) h += box('layer 1 · blocks.1.attn.hook_pattern', mk(M.pattern1, 'teal'), { col: 'var(--teal)', cls: S === 1 ? 'on' : '' });
+  h += `</div>`;
+  if (S >= 2) {
+    const s1 = diagMean(M.pattern1, off), s0 = diagMean(M.pattern0, off), p0 = diagMean(M.pattern0, -1);
+    const stripe = []; for (let i = 0; i < SEQ.length; i++) { const j = i + off; if (j >= 0) stripe.push(M.pattern1[i][j]); }
+    h += `<div class="vrow" style="margin-top:14px;align-items:flex-start">${box(`the stripe = cells ${period - 1} left of the diagonal (offset ${off})`, vecNum(stripe, { cell: 58, dp: 2 }), { col: 'var(--teal)' })}${AR}${box('score = mean', `<div class="big" style="color:${s1 > 0.4 ? 'var(--teal)' : 'var(--coral)'}">${s1.toFixed(2)}</div>`, { col: 'var(--teal)' })}`;
+    if (S >= 3) h += `<div class="status" style="margin-left:12px;max-width:340px">Same test on layer 0 at offset ${off}: <b>${s0.toFixed(2)}</b> ✗. Layer 0 at offset −1 (previous-token detector): <b>${p0.toFixed(2)}</b> ✓. Threshold 0.4 flags each head’s type.</div>`;
+    h += `</div>`;
+  }
+  el.innerHTML = h;
+  if (S >= 2) el.querySelectorAll('.vbox')[1].querySelectorAll('.hcell').forEach(c => { if (+c.dataset.j === +c.dataset.i + off) { c.style.outline = '3px solid #E4572E'; c.style.outlineOffset = '-2px'; } });
+}
+Stepper('det', {
+  render: detRender,
+  intuition: [
+    { say: 'Where do we see the algorithm in the model? In the attention patterns. Layer 0: every row lights up one cell left of the diagonal.', ex: 'Row B5 → A4: “look at the token just before me”. That is the tag-writer.', v: { s: 0 } },
+    { say: 'Layer 1: nothing much in the first half, then a stripe further back in the repeat.', ex: 'Row B5 → C2: “look at the token AFTER my earlier copy”. That is the induction head.', v: { s: 1 } },
+    { say: 'A detector just reads that stripe: take the diagonal at offset 1 − period and average it.', ex: 'Period 4 → offset −3. High average = induction head.', v: { s: 2 } },
+    { say: 'Run the same detector with other offsets to classify every head: −1 = previous-token, 0 = current-token, column 0 = first-token.', ex: 'Real model: 0.7 is previous-token; 1.4 and 1.10 are induction heads; GPT-2 small has 5.1, 5.5, 6.9, 7.2, 7.10.', v: { s: 3 } },
+  ],
+  code: { file: 'notebook · induction_attn_detector', lines: ['def induction_attn_detector(cache):', '    heads = []', '    for layer in range(model.cfg.n_layers):', '        for head in range(model.cfg.n_heads):', '            p = cache["pattern", layer][head]      # [q, k]', '            stripe = p.diagonal(-seq_len + 1)', '            if stripe.mean() > 0.4:', '                heads.append(f"{layer}.{head}")', '    return heads'],
+    steps: [
+      { a: [2, 3, 4], say: 'Loop over every head; pull its pattern from the cache.', v: { s: 1 } },
+      { a: [5], say: 'The stripe: diagonal at offset 1 − seq_len.', v: { s: 2 } },
+      { a: [6, 7], say: 'Average above 0.4 → flag it.', v: { s: 3 } },
+    ] },
+});
+document.querySelectorAll('#seqSeg button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#seqSeg button').forEach(x => x.classList.remove('on')); b.classList.add('on');
+  SEQ = b.dataset.seq.split(''); M = runModel(SEQ); period = SEQ.indexOf(SEQ[0], 1);
+  STEPPERS.forEach(st => st.render());
+});
+</script></body></html>

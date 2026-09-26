@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Direct Logit Attribution — TARA</title>
+<style>:root { --teal:#0E7C7B; --teal-lt:#DCEEED; --coral:#E4572E; --coral-lt:#FBE4DC; --purple:#6C4AB6; --purple-lt:#EAE3F7; --amber:#B7791F; --amber-lt:#FDF1D6; --ink:#1A1A1A; --muted:#4F5A63; --line:#C9D0D5; --bg:#F2F4F5; --code:#1E1E2E; }
+* { box-sizing:border-box; }
+html { font-size:20px; }
+@media (min-width:1600px) { html { font-size:22px; } }
+body { font-family:Calibri, Carlito, "Segoe UI", Arial, sans-serif; margin:0; padding:28px 40px 60px; background:#fff; color:var(--ink); line-height:1.35; }
+.wrap { max-width:1720px; margin:0 auto; }
+h1 { font-size:2.1rem; margin:0; }
+.sub { color:var(--muted); font-size:1.1rem; margin:6px 0 22px; }
+.kicker { font-size:0.85rem; font-weight:bold; letter-spacing:2px; text-transform:uppercase; color:var(--teal); }
+h2 { font-size:1.45rem; margin:0 0 6px; }
+.panel { border:2px solid var(--line); border-radius:18px; padding:24px 28px; margin-bottom:26px; }
+.desc { color:var(--muted); font-size:1.05rem; margin:0 0 18px; max-width:1300px; }
+code, .mono { font-family:"Courier New", "DejaVu Sans Mono", monospace; }
+button { font-family:inherit; font-size:1rem; font-weight:bold; padding:12px 20px; border-radius:12px; border:2px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; }
+button:hover { border-color:var(--teal); }
+button.primary { background:var(--teal); border-color:var(--teal); color:#fff; }
+button:disabled { opacity:0.35; cursor:not-allowed; }
+.seg { display:inline-flex; border:2px solid var(--line); border-radius:12px; overflow:hidden; flex-wrap:wrap; }
+.seg button { border:none; border-radius:0; color:var(--muted); }
+.seg button + button { border-left:2px solid var(--line); }
+.seg button.on { background:var(--teal); color:#fff; }
+.seg.coral button.on { background:var(--coral); }
+.seg.purple button.on { background:var(--purple); }
+.row { display:flex; gap:26px; flex-wrap:wrap; align-items:flex-start; }
+.col { flex:1; min-width:360px; }
+.ctrl { display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:18px; }
+.ctrl label { font-weight:bold; color:var(--muted); }
+/* code + pseudocode pair: each row = [code | plain English] */
+.codepair { display:grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); border-radius:14px; overflow:hidden; border:2px solid var(--code); }
+.codepair .c { background:var(--code); color:#E4E4EF; font-family:"Courier New","DejaVu Sans Mono",monospace; font-size:0.95rem; }
+.codepair .p { background:#FAFBFC; font-size:1rem; }
+.codepair .hd { font-size:0.75rem; letter-spacing:2px; text-transform:uppercase; font-weight:bold; padding:14px 18px 8px; color:#9A9AB0; font-family:Calibri, Carlito, sans-serif; }
+.codepair .hd.p { color:var(--muted); }
+.codepair .pad { height:12px; }
+.ln { padding:4px 18px; border-left:6px solid transparent; transition:background .25s, opacity .25s; }
+.ln.c { white-space:pre-wrap; word-break:break-word; }
+.ln.c.on { background:#3A3A5C; border-left-color:#5FC2BF; }
+.ln.p.on { background:var(--teal-lt); border-left-color:var(--teal); font-weight:bold; }
+.ln.c.done { color:#8C8CA6; } .ln.c.done span { color:inherit; } .ln.p.done { color:#8A949C; }
+.kw{color:#D19BE0;} .str{color:#F0A77F;} .com{color:#7FBF7F;} .num{color:#B5CEA8;}
+/* flow diagram */
+.flow { display:flex; align-items:stretch; gap:0; flex-wrap:wrap; row-gap:14px; }
+.node { border:3px solid var(--line); background:var(--bg); border-radius:14px; padding:10px 14px; min-width:120px; text-align:center; transition:all .3s; }
+.node .t { font-weight:bold; font-size:1.05rem; }
+.node .h { font-family:"Courier New",monospace; font-size:0.8rem; color:var(--muted); margin-top:4px; }
+.node.on { border-color:var(--teal); background:var(--teal-lt); box-shadow:0 0 0 5px rgba(14,124,123,.18); }
+.node.bad { border-color:var(--coral); background:var(--coral-lt); }
+.node.dim { opacity:.35; }
+.arr { align-self:center; font-size:1.6rem; color:var(--muted); padding:0 8px; }
+.status { margin-top:16px; padding:14px 18px; border-radius:12px; background:var(--bg); font-size:1.1rem; min-height:56px; }
+.status.good { background:var(--teal-lt); color:#0a5e5d; }
+.status.bad { background:var(--coral-lt); color:#a53a1b; }
+.note { background:var(--amber-lt); border-radius:12px; padding:14px 18px; font-size:1rem; margin-top:10px; }
+.hgrid { display:inline-grid; gap:3px; }
+.hcell { border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:bold; color:#fff; font-family:"Courier New",monospace; }
+.axis { font-family:"Courier New",monospace; font-size:0.8rem; color:var(--muted); display:flex; align-items:center; justify-content:center; }
+.big { font-size:2.4rem; font-weight:bold; font-family:"Courier New",monospace; }
+.pill { display:inline-block; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.9rem; }
+.keys { position:fixed; right:18px; bottom:14px; font-size:0.8rem; color:var(--muted); background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 10px; }
+.vec { display:inline-grid; grid-template-columns:repeat(6,18px); gap:2px; vertical-align:middle; }
+.vec div { width:18px; height:18px; border-radius:3px; }
+/* stepper */
+.stepper { border:2px solid var(--line); border-radius:18px; padding:18px 22px; margin:14px 0 26px; background:#fff; }
+.st-head { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+.st-head .st-count { color:var(--muted); margin-left:6px; }
+.st-body { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr); gap:22px; align-items:start; }
+@media (max-width:1100px) { .st-body { grid-template-columns:1fr; } }
+.st-vis { min-height:380px; }
+.st-say { background:var(--teal-lt); color:#0a5e5d; font-weight:bold; font-size:1.2rem; border-radius:14px; padding:16px 18px; line-height:1.4; }
+.st-ex { margin-top:12px; background:var(--amber-lt); border-radius:14px; padding:12px 16px; font-size:1.02rem; }
+.st-ex b { display:block; font-size:0.8rem; letter-spacing:2px; text-transform:uppercase; color:var(--amber); margin-bottom:4px; }
+.st-code { margin-top:12px; background:var(--code); border-radius:14px; padding:10px 0 12px; font-family:"Courier New","DejaVu Sans Mono",monospace; font-size:0.9rem; color:#E4E4EF; }
+.st-code .hd { font-family:Calibri,Carlito,sans-serif; font-size:0.72rem; letter-spacing:2px; text-transform:uppercase; color:#9A9AB0; font-weight:bold; padding:4px 16px 8px; }
+.st-code .l { padding:4px 16px; white-space:pre-wrap; border-left:6px solid transparent; }
+.st-code .l.on { background:#3A3A5C; border-left-color:#5FC2BF; }
+.st-code .l.future { color:#6A6A84; } .st-code .l.future span { color:inherit !important; }
+.vn { display:inline-grid; gap:3px; }
+.vn div { border-radius:6px; display:flex; align-items:center; justify-content:center; font-family:"Courier New",monospace; font-weight:bold; font-size:0.82rem; border:1px solid #E1E5E8; }
+.bars { display:flex; gap:10px; align-items:flex-end; }
+.bars .b { text-align:center; width:52px; }
+.bars .bt { display:flex; align-items:flex-end; justify-content:center; }
+.bars .bf { width:36px; border-radius:6px 6px 0 0; transition:height .4s; }
+.bars .bv { font-size:0.75rem; color:var(--muted); height:20px; }
+.bars .bl { font-weight:bold; font-family:"Courier New",monospace; margin-top:4px; }
+.vbox { border:3px solid var(--line); border-radius:14px; padding:10px 12px; background:#fff; display:inline-block; vertical-align:top; transition:all .3s; }
+.vbox .vt { font-size:0.8rem; font-weight:bold; letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
+.vbox.on { border-color:var(--teal); box-shadow:0 0 0 5px rgba(14,124,123,.15); }
+.vbox.dim { opacity:.28; }
+.varr { display:inline-flex; align-items:center; font-size:1.8rem; color:var(--muted); padding:0 6px; align-self:center; }
+.vrow { display:flex; align-items:center; flex-wrap:wrap; gap:6px; row-gap:12px; }
+.picker { display:inline-flex; border:2px solid var(--line); border-radius:12px; overflow:hidden; }
+.picker button { border:none; border-radius:0; width:54px; font-family:"Courier New",monospace; font-size:1.2rem; padding:10px 0; }
+.picker button + button { border-left:2px solid var(--line); }
+.picker button.on { background:var(--purple); color:#fff; }
+.tokrow2 { display:flex; gap:10px; flex-wrap:wrap; }
+.tk2 { min-width:70px; padding:12px 10px; text-align:center; border:3px solid var(--line); border-radius:12px; font-weight:bold; font-size:1.3rem; background:#fff; transition:all .3s; }
+.tk2 small { display:block; font-weight:normal; font-size:0.7rem; color:var(--muted); font-family:"Courier New",monospace; }
+.legend { color:var(--muted); font-size:0.9rem; margin-top:8px; }
+
+/* presenter bar */
+.pbar { position:sticky; top:0; z-index:50; display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:rgba(255,255,255,.96); padding:10px 0 12px; margin:-6px 0 12px; border-bottom:2px solid var(--line); }
+.pbar button { padding:8px 14px; font-size:0.9rem; border-radius:10px; }
+.pbar button.sec b { color:var(--teal); margin-right:4px; }
+.pbar button.on { background:var(--teal); border-color:var(--teal); color:#fff; }
+.pbar button.on b { color:#fff; }
+.pbar .sp { flex:1; }
+.st-head { position:relative; }
+
+sub { font-size:0.62em; color:inherit; opacity:.75; margin-left:1px; }
+.stepper { scroll-margin-top:84px; }
+
+#dla .st-body { grid-template-columns:minmax(0,2.6fr) minmax(290px,1fr); }
+#dla .vn div { font-size:0.74rem; }
+#dla .vbox { padding:8px 10px; }
+.tokpick { display:inline-flex; gap:6px; flex-wrap:wrap; }
+.tokpick button { width:64px; padding:6px 0 4px; font-family:"Courier New",monospace; font-size:1.3rem; line-height:1.1; }
+.tokpick button small { display:block; font-size:0.62rem; font-family:Calibri,Carlito,sans-serif; color:var(--muted); font-weight:normal; }
+.tokpick button.on { background:var(--teal); border-color:var(--teal); color:#fff; } .tokpick button.on small { color:#fff; }
+.tokpick button.rep { border-color:var(--teal); }
+.anspick button { width:52px; font-family:"Courier New",monospace; font-size:1.2rem; padding:8px 0; }
+.anspick button.on { background:var(--purple); border-color:var(--purple); color:#fff; }
+.oldpick { display:flex; gap:10px; flex-wrap:wrap; }
+.pick button { width:74px; height:74px; font-size:1.6rem; font-family:"Courier New",monospace; position:relative; }
+.pick button small { position:absolute; bottom:-24px; left:0; right:0; font-size:0.75rem; color:var(--muted); font-weight:normal; }
+.pick button.on { background:var(--purple); color:#fff; border-color:var(--purple); }
+.ans button { width:64px; height:60px; font-size:1.4rem; font-family:"Courier New",monospace; }
+.ans button.on { background:var(--teal); color:#fff; border-color:var(--teal); }
+.ans button.on.wrong { background:var(--coral); border-color:var(--coral); }
+.term { text-align:center; padding:14px 16px; border-radius:14px; border:3px solid var(--line); background:var(--bg); min-width:170px; }
+.term .n { font-weight:bold; margin-bottom:8px; }
+.term .c { font-family:"Courier New",monospace; font-size:1.4rem; font-weight:bold; margin-top:8px; }
+.op { align-self:center; font-size:2rem; font-weight:bold; padding:0 10px; color:var(--muted); }
+
+.bi { width:130px; text-align:center; }
+.bt { height:260px; position:relative; }
+.zero { position:absolute; left:-10px; right:-10px; top:50%; height:2px; background:var(--ink); }
+.bb { position:absolute; left:15px; right:15px; border-radius:6px; transition:all .45s; }
+</style></head>
+<body><div class="wrap">
+<div class="kicker">TARA · Week 4 · Section 4 · part 2</div>
+<h1>Direct Logit Attribution — who pushed the answer?</h1>
+<div class="sub">The residual stream is a <b>sum</b> of every component’s output, and the logit for a word is that sum · <b>W_U[:, word]</b> (the unembedding column for that word). So each component’s share of a logit is one dot product. <br><b>Toy model:</b> vocabulary of 6 tokens <b>A–F</b>, sequence <b>A B C D A B C D</b> (the repeat starts at position 4). A small number after a token is its position: C<sub>6</sub> = token C at position 6.</div>
+<div id="dla"></div>
+<div class="note">In the real notebook the direct path (embed → unembed) carries surprisingly large logits for frequent, predictable tokens — so don’t skip the grey bar. And DLA only measures the <b>direct</b> push: a head that helps by feeding a later head (like 0.7 → 1.4) scores ≈ 0 here. That is why we also need ablations.</div>
+<div class="note" style="background:var(--bg)"><b>Read more:</b> <a href="https://transformerlensorg.github.io/TransformerLens/" target="_blank">TransformerLens docs</a> · <a href="https://github.com/callummcdougall/ARENA_3.0" target="_blank">ARENA 1.2 (logit attribution exercise)</a> · <a href="https://dynalist.io/d/n2ZWtnoYHrU1s4vnFSAQ519J" target="_blank">mech interp glossary (“direct logit attribution”)</a></div>
+</div>
+<script>// ---------------- shared deterministic toy model (same recipe in every TARA Week 4 page) ----------------
+function seededRand(seed) { let s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+function matmul(A, B) { const r = A.length, inner = A[0].length, c = B[0].length; const out = Array.from({ length: r }, () => Array(c).fill(0)); for (let i = 0; i < r; i++) for (let j = 0; j < c; j++) { let s = 0; for (let k = 0; k < inner; k++) s += A[i][k] * B[k][j]; out[i][j] = s; } return out; }
+function transpose(A) { return A[0].map((_, j) => A.map(row => row[j])); }
+function onehot(i, n) { const v = Array(n).fill(0); v[i] = 1; return v; }
+function eye(n) { return Array.from({ length: n }, (_, i) => onehot(i, n)); }
+function softmax(arr) { const m = Math.max(...arr.filter(v => v > -1e8)); const ex = arr.map(v => v <= -1e8 ? 0 : Math.exp(v - m)); const s = ex.reduce((a, b) => a + b, 0); return ex.map(v => v / s); }
+function randomOrthogonal(n, seed) { const rand = seededRand(seed); const cols = []; for (let j = 0; j < n; j++) { let v = Array.from({ length: n }, () => rand() * 2 - 1); for (const u of cols) { const dot = v.reduce((s, vi, i) => s + vi * u[i], 0); v = v.map((vi, i) => vi - dot * u[i]); } const norm = Math.sqrt(v.reduce((s, vi) => s + vi * vi, 0)); v = v.map(vi => vi / norm); cols.push(v); } return cols; }
+function argmax(a) { let b = 0; for (let i = 1; i < a.length; i++) if (a[i] > a[b]) b = i; return b; }
+const VOCAB = ['A', 'B', 'C', 'D', 'E', 'F'], D = 6;
+const WE = randomOrthogonal(D, 1234), WU = transpose(WE), WPOS = randomOrthogonal(D, 555);
+const Z0_SCALE = 0.15, Z1_BOOST = 3.0;
+function prevTokenPattern(n) { return Array.from({ length: n }, (_, i) => softmax(Array.from({ length: n }, (_, j) => j > i ? -1e9 : (j === i - 1 ? 6 : -2)))); }
+function inductionPattern(n, ids, prevAblated) {
+  return Array.from({ length: n }, (_, i) => {
+    const q = WE[ids[i]];
+    return softmax(Array.from({ length: n }, (_, j) => {
+      if (j > i) return -1e9;
+      if (j === 0 || prevAblated) return 0;
+      const k = WE[ids[j - 1]]; let d = 0; for (let t = 0; t < D; t++) d += q[t] * k[t]; return d * 8;
+    }));
+  });
+}
+// ablate: 'none' | 'prev' (zero layer-0 head output) | 'induction' (zero layer-1 head output)
+function runModel(seq, ablate = 'none') {
+  const ids = seq.map(t => VOCAB.indexOf(t)), n = ids.length;
+  const embed = ids.map(id => WE[id].slice());
+  const pos = ids.map((_, i) => WPOS[i % D].slice());
+  const residPre0 = embed.map((r, i) => r.map((v, d) => v + pos[i][d]));
+  const pattern0 = prevTokenPattern(n);
+  const s0 = ablate === 'prev' ? 0 : Z0_SCALE;
+  const z0 = pattern0.map(row => { const o = Array(D).fill(0); row.forEach((w, j) => { for (let d = 0; d < D; d++) o[d] += w * residPre0[j][d] * s0; }); return o; });
+  const residPost0 = residPre0.map((r, i) => r.map((v, d) => v + z0[i][d]));
+  const pattern1 = inductionPattern(n, ids, ablate === 'prev');
+  const s1 = ablate === 'induction' ? 0 : Z1_BOOST;
+  const z1 = pattern1.map(row => { const o = Array(D).fill(0); row.forEach((w, j) => { for (let d = 0; d < D; d++) o[d] += w * embed[j][d] * s1; }); return o; });
+  const residPost1 = residPost0.map((r, i) => r.map((v, d) => v + z1[i][d]));
+  const logits = matmul(residPost1, WU);
+  return { ids, n, embed, pos, residPre0, pattern0, z0, residPost0, pattern1, z1, residPost1, logits, pred: logits.map(r => VOCAB[argmax(r)]) };
+}
+function diagMean(p, off) { const v = []; for (let i = 0; i < p.length; i++) { const j = i + off; if (j >= 0 && j < p.length) v.push(p[i][j]); } return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; }
+
+// ---------------- rendering helpers ----------------
+// token + position label, e.g. B with a small 5 = token B at position 5
+const PL = (t, i) => `${t}<sub>${i}</sub>`;
+function rampColor(w, base = [14, 124, 123]) { const t = Math.max(0, Math.min(1, w)); return `rgb(${Math.round(255 - t * (255 - base[0]))},${Math.round(255 - t * (255 - base[1]))},${Math.round(255 - t * (255 - base[2]))})`; }
+function divColor(v, bound = 1) { const t = Math.max(-1, Math.min(1, v / bound)); if (t >= 0) return rampColor(t); return `rgb(255,${Math.round(255 + t * (255 - 87))},${Math.round(255 + t * (255 - 46))})`; }
+const RGB = { teal: [14, 124, 123], coral: [228, 87, 46], purple: [108, 74, 182], amber: [183, 121, 31] };
+function vecHTML(v, bound = 1) { return `<div class="vec">${v.map(x => `<div style="background:${divColor(x, bound)}" title="${x.toFixed(3)}"></div>`).join('')}</div>`; }
+// heatmap with axis labels; opts: {cell, color, rowLabels, colLabels, vals, highlightRow, masked}
+function heatHTML(M, o = {}) {
+  const n = M.length, m = M[0].length, cell = o.cell || 40, col = RGB[o.color || 'teal'];
+  let h = `<div class="hgrid" style="grid-template-columns:${o.rowLabels ? '44px ' : ''}repeat(${m},${cell}px)">`;
+  if (o.colLabels) { if (o.rowLabels) h += '<div></div>'; o.colLabels.forEach(l => h += `<div class="axis" style="height:26px">${l}</div>`); }
+  M.forEach((row, i) => {
+    if (o.rowLabels) h += `<div class="axis">${o.rowLabels[i]}</div>`;
+    row.forEach((w, j) => {
+      const masked = o.causal && j > i;
+      const bg = masked ? '#FFFFFF' : (o.diverging ? divColor(w, o.bound || 1) : rampColor(w, col));
+      const ring = (o.highlightRow === i || o.highlightCol === j) ? 'outline:3px solid #1A1A1A;outline-offset:-2px;' : '';
+      const txt = o.vals && !masked && Math.abs(w) >= (o.valMin ?? 0.2) ? (Math.abs(w) >= 10 ? w.toFixed(0) : (+w.toFixed(o.dp ?? 1) === 0 ? (0).toFixed(o.dp ?? 1) : w.toFixed(o.dp ?? 1))) : '';
+      h += `<div class="hcell" data-i="${i}" data-j="${j}" style="width:${cell}px;height:${cell}px;background:${bg};${masked ? 'border:1px solid #EEF0F2;' : ''}${ring}color:${(o.diverging ? Math.abs(w) : w) > 0.55 ? '#fff' : '#1A1A1A'}">${txt}</div>`;
+    });
+  });
+  return h + '</div>';
+}
+// syntax highlight a python line
+function hl(line) {
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  let code = line, com = '';
+  const ci = line.indexOf('#'); if (ci >= 0) { code = line.slice(0, ci); com = line.slice(ci); }
+  let out = esc(code).replace(/("[^"]*"|'[^']*')|\b(def|return|for|in|if|lambda|None|True|False)\b|\b(\d+(?:\.\d+)?)\b/g, (m, s, k, n) => s ? `<span class="str">${s}</span>` : k ? `<span class="kw">${k}</span>` : `<span class="num">${n}</span>`);
+  return out + (com ? `<span class="com">${esc(com)}</span>` : '');
+}
+// build a code/pseudocode pair. rows: [{code:'...', say:'...'}]; returns setter(activeIdxs, doneUpTo)
+function codePair(el, title, rows) {
+  el.classList.add('codepair');
+  el.innerHTML = `<div class="hd c">${title}</div><div class="hd p">what it does</div>` +
+    rows.map((r, i) => `<div class="ln c" data-i="${i}">${r.code ? hl(r.code) : '&nbsp;'}</div><div class="ln p" data-i="${i}">${r.say || '&nbsp;'}</div>`).join('') +
+    `<div class="c pad"></div><div class="p pad"></div>`;
+  return (on = [], doneBelow = -1) => el.querySelectorAll('.ln').forEach(d => { const i = +d.dataset.i; d.classList.toggle('on', on.includes(i)); d.classList.toggle('done', i < doneBelow && !on.includes(i)); });
+}
+
+// ---------------- Stepper: every section = ① Intuition steps, then ② Code steps, one shared visual ----------------
+const STEPPERS = [];
+function Stepper(root, cfg) {
+  // cfg: { intuition:[{say, ex, v}], code:{file, lines:[...], steps:[{a:[...], say, v}]}, render(v, mode, k, vis) }
+  if (typeof root === 'string') root = document.getElementById(root);
+  root.classList.add('stepper');
+  const hasCode = !!cfg.code;
+  root.innerHTML = `<div class="st-head">
+      <div class="seg st-modes"><button data-m="i" class="on">① Intuition</button>${hasCode ? '<button data-m="c">② Code</button>' : ''}</div>
+      <button class="st-back">◀ Back</button><button class="primary st-next">Next ▶</button><span class="st-count mono"></span></div>
+    <div class="st-body"><div class="st-vis"></div><div class="st-side"><div class="st-say"></div><div class="st-ex"></div><div class="st-code"></div></div></div>`;
+  const q = s => root.querySelector(s);
+  const self = { mode: 'i', k: 0, root };
+  const steps = () => self.mode === 'i' ? cfg.intuition : cfg.code.steps;
+  self.render = () => {
+    const st = steps()[self.k];
+    root.querySelectorAll('.st-modes button').forEach(b => b.classList.toggle('on', b.dataset.m === self.mode));
+    q('.st-say').innerHTML = st.say;
+    q('.st-ex').innerHTML = st.ex ? `<b>Example</b> ${st.ex}` : '';
+    q('.st-ex').style.display = st.ex ? 'block' : 'none';
+    if (self.mode === 'c') {
+      const last = Math.max(...st.a);
+      q('.st-code').style.display = 'block';
+      q('.st-code').innerHTML = `<div class="hd">${cfg.code.file}</div>` + cfg.code.lines.map((l, i) => `<div class="l ${st.a.includes(i) ? 'on' : ''} ${i > last ? 'future' : ''}">${l ? hl(l.replace(/(\S)\s{2,}#/, '$1  #')) : '&nbsp;'}</div>`).join('');
+    } else q('.st-code').style.display = 'none';
+    q('.st-count').textContent = `${self.mode === 'i' ? 'intuition' : 'code'} · step ${self.k + 1} / ${steps().length}`;
+    q('.st-back').disabled = self.k === 0 && self.mode === 'i';
+    q('.st-next').disabled = self.k === steps().length - 1 && (self.mode === 'c' || !hasCode);
+    q('.st-next').textContent = (self.k === steps().length - 1 && self.mode === 'i' && hasCode) ? 'Go to code ▶' : 'Next ▶';
+    cfg.render(st.v || {}, self.mode, self.k, q('.st-vis'));
+  };
+  self.next = () => { if (self.k < steps().length - 1) self.k++; else if (self.mode === 'i' && hasCode) { self.mode = 'c'; self.k = 0; } self.render(); };
+  self.back = () => { if (self.k > 0) self.k--; else if (self.mode === 'c') { self.mode = 'i'; self.k = cfg.intuition.length - 1; } self.render(); };
+  q('.st-next').onclick = self.next; q('.st-back').onclick = self.back;
+  root.querySelectorAll('.st-modes button').forEach(b => b.onclick = () => { self.mode = b.dataset.m; self.k = 0; self.render(); });
+  STEPPERS.push(self); self.render();
+  return self;
+}
+// ---------------- presenter mode: one section at a time, tabs, keys, text size, full screen ----------------
+let ACTIVE_ST = null;
+function nearestStepper() {
+  if (ACTIVE_ST && ACTIVE_ST.root.offsetParent !== null) return ACTIVE_ST;
+  const mid = window.innerHeight / 2; let best = STEPPERS[0], bd = 1e9;
+  STEPPERS.forEach(s => { const r = s.root.getBoundingClientRect(); const d = Math.abs((r.top + r.bottom) / 2 - mid); if (r.bottom > 0 && r.top < window.innerHeight && d < bd) { bd = d; best = s; } });
+  return best;
+}
+function setFont(px) { document.documentElement.style.fontSize = px + 'px'; try { localStorage.setItem('tara-font', px); } catch (e) {} }
+function curFont() { return parseFloat(getComputedStyle(document.documentElement).fontSize); }
+window.addEventListener('load', () => {
+  try { const f = localStorage.getItem('tara-font'); if (f) setFont(+f); } catch (e) {}
+  const secs = STEPPERS.map(st => { let h = st.root.previousElementSibling; while (h && h.tagName !== 'H2') h = h.previousElementSibling; return { st, h }; });
+  const wrap = document.querySelector('.wrap'); if (!wrap || !secs.length) return;
+  const bar = document.createElement('div'); bar.className = 'pbar';
+  bar.innerHTML = (secs.length > 1 ? secs.map((s, i) => `<button class="sec" data-i="${i}"><b>${i + 1}</b> ${(s.h ? s.h.textContent : 'Section ' + (i + 1)).replace(/^\s*\d+\s*·\s*/, '').split(/ — | – /)[0]}</button>`).join('') : '') +
+    `<span class="sp"></span><button data-a="-" title="smaller text (−)">A−</button><button data-a="+" title="bigger text (+)">A+</button><button data-a="f" title="full screen (F)">⛶</button>` + (secs.length > 1 ? `<button data-a="all" title="show every section (0)">all</button>` : '');
+  const sub = wrap.querySelector('.sub'); (sub || wrap.firstChild).after(bar);
+  let all = secs.length < 2;
+  window.showSection = i => {
+    ACTIVE_ST = all ? null : secs[i].st;
+    secs.forEach((s, j) => { const on = all || j === i; s.st.root.style.display = on ? '' : 'none'; if (s.h) s.h.style.display = on ? '' : 'none'; });
+    bar.querySelectorAll('.sec').forEach(b => b.classList.toggle('on', !all && +b.dataset.i === i));
+    const ab = bar.querySelector('[data-a="all"]'); if (ab) ab.classList.toggle('on', all);
+    if (!all) { const top = bar.getBoundingClientRect().top + window.scrollY; if (window.scrollY > top) window.scrollTo(0, top); }
+  };
+  bar.onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.i != null) { all = false; showSection(+b.dataset.i); }
+    else if (b.dataset.a === '+') setFont(curFont() + 2);
+    else if (b.dataset.a === '-') setFont(Math.max(14, curFont() - 2));
+    else if (b.dataset.a === 'f') { if (!document.fullscreenElement) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
+    else if (b.dataset.a === 'all') { all = !all; showSection(Math.max(0, secs.findIndex(s => s.st === ACTIVE_ST))); }
+  };
+  showSection(0);
+  window._secs = secs.length;
+  const kh = document.createElement('div'); kh.className = 'keys'; kh.textContent = '→ next · ← back' + (secs.length > 1 ? ' · 1–' + secs.length + ' section' : '') + ' · C intuition/code · + − text size · F full screen'; document.body.appendChild(kh);
+});
+document.addEventListener('keydown', e => {
+  if (!STEPPERS.length || ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+  const best = nearestStepper();
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); best.next(); }
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); best.back(); }
+  else if (/^[1-9]$/.test(e.key) && window.showSection && +e.key <= (window._secs || 0) && window._secs > 1) window.showSection(+e.key - 1);
+  else if (e.key === '+' || e.key === '=') setFont(curFont() + 2);
+  else if (e.key === '-') setFont(Math.max(14, curFont() - 2));
+  else if (e.key === 'f' || e.key === 'F') { if (!document.fullscreenElement) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
+  else if (e.key === 'c' || e.key === 'C') { best.mode = best.mode === 'i' ? 'c' : 'i'; best.k = 0; best.render(); }
+});
+// numbers-in-cells vector (for intuition: show actual values)
+function vecNum(v, o = {}) {
+  const c = o.cell || 46, b = o.bound || 1;
+  return `<div class="vn" style="grid-template-columns:repeat(${v.length},${c}px)">${v.map((x, i) => `<div style="width:${c}px;height:${c}px;background:${o.plain ? '#fff' : divColor(x, b)};color:${Math.abs(x) / b > 0.55 && !o.plain ? '#fff' : '#1A1A1A'};${o.hi && o.hi(i) ? 'outline:3px solid #1A1A1A;outline-offset:-2px;' : ''}">${o.hide ? '' : (+x.toFixed(o.dp ?? 1) === 0 ? '0' : x.toFixed(o.dp ?? 1))}</div>`).join('')}</div>`;
+}
+// vertical bars for logits/scores
+function barsHTML(vals, labels, o = {}) {
+  const mx = o.max || Math.max(...vals.map(Math.abs), 0.1), H = o.h || 150, win = o.win ?? argmax(vals);
+  return `<div class="bars" style="height:${H + 60}px">${vals.map((v, i) => `<div class="b"><div class="bv mono">${(+v.toFixed(o.dp ?? 1) === 0 ? 0 : v).toFixed(o.dp ?? 1)}</div><div class="bt" style="height:${H}px"><div class="bf" style="height:${Math.max(3, Math.abs(v) / mx * H)}px;background:${i === win ? (o.col || 'var(--teal)') : v < 0 ? 'var(--coral-lt)' : '#C9D0D5'}"></div></div><div class="bl">${labels[i]}</div></div>`).join('')}</div>`;
+}
+function box(title, inner, o = {}) { return `<div class="vbox ${o.cls || ''}" style="${o.style || ''}"><div class="vt" style="color:${o.col || 'var(--muted)'}">${title}</div>${inner}</div>`; }
+const AR = '<div class="varr">→</div>';
+
+const SEQ = 'ABCDABCD'.split(''); const M = runModel(SEQ);
+const trueNext = SEQ.slice(1).concat(['A']);
+const dot = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0);
+let dPos = 6, dAns = 'D', dKey = '';
+function dRender(v, mode, k, el) {
+  const key = mode + k; if (key !== dKey) { dKey = key; dPos = v.pos ?? 6; dAns = v.ans || trueNext[dPos]; }
+  const S = v.s ?? 0, pos = dPos, ans = dAns, ai = VOCAB.indexOf(ans);
+  const dir = WU.map(r => r[ai]);
+  const parts = [['token + position embedding', M.residPre0[pos], '#8A97A0'], ['layer 0 head (previous-token)', M.z0[pos], '#E4572E'], ['layer 1 head (induction)', M.z1[pos], '#0E7C7B']];
+  const c = parts.map(p => dot(p[1], dir)), total = c.reduce((a, b) => a + b, 0);
+  let h = `<div class="ctrl"><label>Position:</label><div class="tokpick" id="dp">${SEQ.map((t, i) => `<button data-i="${i}" class="${i === pos ? 'on' : ''} ${i >= 4 ? 'rep' : ''}">${t}<small>pos ${i}</small></button>`).join('')}</div></div>
+    <div class="ctrl"><label>Answer to attribute:</label><div class="seg purple anspick" id="da">${VOCAB.map(t => `<button data-t="${t}" class="${t === ans ? 'on' : ''}">${t}</button>`).join('')}</div>
+    <span class="pill" style="background:var(--teal-lt);color:var(--teal)">at ${PL(SEQ[pos], pos)} the real next token is ${trueNext[pos]}</span></div>`;
+  // row 1: the three parts and their sum
+  h += `<div class="vrow">` + parts.map((p, i) => box(p[0], vecNum(p[1], { cell: 42 }) + (S >= 3 ? `<div class="big" style="font-size:1.4rem;color:${p[2]};margin-top:6px">${c[i] >= 0 ? '+' : ''}${c[i].toFixed(2)} for ${ans}</div>` : ''), { col: p[2], style: `border-color:${p[2]}` }) + (i < 2 ? '<div class="varr">+</div>' : '')).join('') + `</div>`;
+  h += `<div class="vrow" style="margin-top:10px"><div class="varr">=</div>${box(`final stream at ${PL(SEQ[pos], pos)}`, vecNum(M.residPost1[pos], { cell: 42 }), { col: 'var(--ink)' })}`;
+  if (S >= 2) h += `<div class="varr">·</div>${box(`W_U[:, ${ans}]  (column ${ans})`, vecNum(dir, { cell: 42 }), { col: 'var(--purple)', style: 'border-color:var(--purple)' })}<div class="varr">=</div>${box(`logit(${ans})`, `<div class="big" style="font-size:2rem">${total.toFixed(2)}</div>`, { col: 'var(--ink)' })}`;
+  h += `</div>`;
+  if (S === 1 || S === 2) {
+    h += `<div class="vrow" style="margin-top:12px;align-items:flex-start">${box('W_U · one column per token', heatHTML(WU, { cell: 36, diverging: true, rowLabels: ['d0', 'd1', 'd2', 'd3', 'd4', 'd5'], colLabels: VOCAB, vals: true, valMin: 0, dp: 1, highlightCol: ai }), { col: 'var(--purple)', style: 'border-color:var(--purple)' })}
+      <div class="status" style="max-width:340px;margin-left:14px">Rows d0–d5 = the 6 numbers of the stream. Each <b>column</b> of W_U is one word’s “direction”. The logit for <b>${ans}</b> = the stream · column <b>${ans}</b> (outlined). Click another answer to move the outline.</div></div>`;
+  }
+  if (S >= 4) {
+    const mx = Math.max(...c.map(Math.abs), Math.abs(total), 1) * 1.1, Hh = 110, neg = Math.max(0, ...c.map(x => -x), -total), Hn = Math.max(10, neg / mx * Hh + 6);
+    h += `<div class="vrow" style="margin-top:14px;align-items:flex-start"><div style="display:flex;gap:26px">` + parts.map((p, i) => [p[0], c[i], p[2]]).concat([['total = logit', total, '#1A1A1A']]).map(([n, x, col]) => { const hh = Math.abs(x) / mx * Hh; return `<div style="width:120px;text-align:center"><div style="height:${Hh + Hn}px;position:relative"><div style="position:absolute;left:-6px;right:-6px;top:${Hh}px;height:2px;background:#1A1A1A"></div><div style="position:absolute;left:25px;right:25px;border-radius:5px;background:${col};height:${Math.max(3, hh)}px;top:${x >= 0 ? Hh - hh : Hh}px"></div></div><div style="font-weight:bold;color:${col};font-size:0.85rem">${n}</div><div class="mono" style="font-weight:bold">${x.toFixed(2)}</div></div>`; }).join('') + `</div>`;
+    const isT = ans === trueNext[pos];
+    h += `<div class="status ${c[2] > 1 ? 'good' : 'bad'}" style="max-width:380px;margin-left:18px">${c[2] > 1 ? `The induction head alone pushes “${ans}” by <b>${c[2].toFixed(2)}</b>${isT ? ' — and it IS the real next token.' : '.'}` : `Induction head: only <b>${c[2].toFixed(2)}</b> for “${ans}” — ${isT ? (pos < 4 ? 'this is before the repeat: no earlier copy to find, so nothing to copy.' : 'nothing to copy here.') : 'it only pushes the token that came next last time.'}`}</div></div>`;
+  }
+  el.innerHTML = h;
+  el.querySelectorAll('#dp button').forEach(b => b.onclick = () => { dPos = +b.dataset.i; dAns = trueNext[dPos]; dRender(v, mode, k, el); });
+  el.querySelectorAll('#da button').forEach(b => b.onclick = () => { dAns = b.dataset.t; dRender(v, mode, k, el); });
+}
+Stepper('dla', {
+  render: dRender,
+  intuition: [
+    { say: 'Take position 6: the model sees C and should predict D. The stream there is a SUM of three parts: embeddings + what layer 0 wrote + what layer 1 wrote.', ex: 'Like a group project: the final essay is everyone’s paragraphs added together.', v: { s: 0 } },
+    { say: 'How does the stream become a prediction? The unembedding W_U has one COLUMN per token. Column D is the “direction that means D”.', ex: 'The outlined column is W_U[:, D]. Click another answer: the outline moves.', v: { s: 1 } },
+    { say: 'The logit for D = final stream · column D. One number.', v: { s: 2 } },
+    { say: 'A dot product splits over a sum, so each part gets its own score: part · W_U[:, D]. The three scores add up exactly to the logit.', ex: 'Grade each paragraph separately; the grades add up to the essay’s grade.', v: { s: 3 } },
+    { say: 'As bars: the induction head did most of the pushing toward D. That is direct logit attribution.', v: { s: 4 } },
+    { say: 'Same position, a WRONG answer (A): the induction head gives ≈ 0. It pushes one specific token, not everything.', v: { s: 4, pos: 6, ans: 'A' } },
+    { say: 'Before the repeat (position 2, token C): even for the true answer D the induction head gives ≈ 0 — there is no earlier copy to find yet.', v: { s: 4, pos: 2 } },
+    { say: 'Try any position and answer yourself with the buttons above.', v: { s: 4 } },
+  ],
+  code: { file: 'notebook · logit_attribution', lines: ['def logit_attribution(embed, l1_results, l2_results, W_U, tokens):', '    W_U_correct = W_U[:, tokens[1:]]       # [d_model, seq-1]', '    direct = einsum(embed[:-1], W_U_correct,', '                    "seq d, d seq -> seq")', '    l1 = einsum(l1_results[:-1], W_U_correct,', '                "seq nh d, d seq -> seq nh")', '    l2 = einsum(l2_results[:-1], W_U_correct,', '                "seq nh d, d seq -> seq nh")', '    return t.concat([direct[:, None], l1, l2], dim=-1)'],
+    steps: [
+      { a: [1], say: 'For every position, take the W_U COLUMN of the REAL next token (so drop the last position — it has no next token).', v: { s: 2 } },
+      { a: [2, 3], say: 'Direct path: embedding · that column, one number per position.', v: { s: 3 } },
+      { a: [4, 5, 6, 7], say: 'Each head’s output (hook_result) · that column → one number per position per head.', v: { s: 3 } },
+      { a: [8], say: 'Stack → [seq − 1, 1 + 2·n_heads]. Each row is a bar chart like this one.', v: { s: 4 } },
+    ] },
+});
+</script></body></html>

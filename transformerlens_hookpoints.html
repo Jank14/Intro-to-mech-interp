@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TransformerLens Hook Points — TARA</title>
+<style>:root { --teal:#0E7C7B; --teal-lt:#DCEEED; --coral:#E4572E; --coral-lt:#FBE4DC; --purple:#6C4AB6; --purple-lt:#EAE3F7; --amber:#B7791F; --amber-lt:#FDF1D6; --ink:#1A1A1A; --muted:#4F5A63; --line:#C9D0D5; --bg:#F2F4F5; --code:#1E1E2E; }
+* { box-sizing:border-box; }
+html { font-size:20px; }
+@media (min-width:1600px) { html { font-size:22px; } }
+body { font-family:Calibri, Carlito, "Segoe UI", Arial, sans-serif; margin:0; padding:28px 40px 60px; background:#fff; color:var(--ink); line-height:1.35; }
+.wrap { max-width:1720px; margin:0 auto; }
+h1 { font-size:2.1rem; margin:0; }
+.sub { color:var(--muted); font-size:1.1rem; margin:6px 0 22px; }
+.kicker { font-size:0.85rem; font-weight:bold; letter-spacing:2px; text-transform:uppercase; color:var(--teal); }
+h2 { font-size:1.45rem; margin:0 0 6px; }
+.panel { border:2px solid var(--line); border-radius:18px; padding:24px 28px; margin-bottom:26px; }
+.desc { color:var(--muted); font-size:1.05rem; margin:0 0 18px; max-width:1300px; }
+code, .mono { font-family:"Courier New", "DejaVu Sans Mono", monospace; }
+button { font-family:inherit; font-size:1rem; font-weight:bold; padding:12px 20px; border-radius:12px; border:2px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; }
+button:hover { border-color:var(--teal); }
+button.primary { background:var(--teal); border-color:var(--teal); color:#fff; }
+button:disabled { opacity:0.35; cursor:not-allowed; }
+.seg { display:inline-flex; border:2px solid var(--line); border-radius:12px; overflow:hidden; flex-wrap:wrap; }
+.seg button { border:none; border-radius:0; color:var(--muted); }
+.seg button + button { border-left:2px solid var(--line); }
+.seg button.on { background:var(--teal); color:#fff; }
+.seg.coral button.on { background:var(--coral); }
+.seg.purple button.on { background:var(--purple); }
+.row { display:flex; gap:26px; flex-wrap:wrap; align-items:flex-start; }
+.col { flex:1; min-width:360px; }
+.ctrl { display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:18px; }
+.ctrl label { font-weight:bold; color:var(--muted); }
+/* code + pseudocode pair: each row = [code | plain English] */
+.codepair { display:grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); border-radius:14px; overflow:hidden; border:2px solid var(--code); }
+.codepair .c { background:var(--code); color:#E4E4EF; font-family:"Courier New","DejaVu Sans Mono",monospace; font-size:0.95rem; }
+.codepair .p { background:#FAFBFC; font-size:1rem; }
+.codepair .hd { font-size:0.75rem; letter-spacing:2px; text-transform:uppercase; font-weight:bold; padding:14px 18px 8px; color:#9A9AB0; font-family:Calibri, Carlito, sans-serif; }
+.codepair .hd.p { color:var(--muted); }
+.codepair .pad { height:12px; }
+.ln { padding:4px 18px; border-left:6px solid transparent; transition:background .25s, opacity .25s; }
+.ln.c { white-space:pre-wrap; word-break:break-word; }
+.ln.c.on { background:#3A3A5C; border-left-color:#5FC2BF; }
+.ln.p.on { background:var(--teal-lt); border-left-color:var(--teal); font-weight:bold; }
+.ln.c.done { color:#8C8CA6; } .ln.c.done span { color:inherit; } .ln.p.done { color:#8A949C; }
+.kw{color:#D19BE0;} .str{color:#F0A77F;} .com{color:#7FBF7F;} .num{color:#B5CEA8;}
+/* flow diagram */
+.flow { display:flex; align-items:stretch; gap:0; flex-wrap:wrap; row-gap:14px; }
+.node { border:3px solid var(--line); background:var(--bg); border-radius:14px; padding:10px 14px; min-width:120px; text-align:center; transition:all .3s; }
+.node .t { font-weight:bold; font-size:1.05rem; }
+.node .h { font-family:"Courier New",monospace; font-size:0.8rem; color:var(--muted); margin-top:4px; }
+.node.on { border-color:var(--teal); background:var(--teal-lt); box-shadow:0 0 0 5px rgba(14,124,123,.18); }
+.node.bad { border-color:var(--coral); background:var(--coral-lt); }
+.node.dim { opacity:.35; }
+.arr { align-self:center; font-size:1.6rem; color:var(--muted); padding:0 8px; }
+.status { margin-top:16px; padding:14px 18px; border-radius:12px; background:var(--bg); font-size:1.1rem; min-height:56px; }
+.status.good { background:var(--teal-lt); color:#0a5e5d; }
+.status.bad { background:var(--coral-lt); color:#a53a1b; }
+.note { background:var(--amber-lt); border-radius:12px; padding:14px 18px; font-size:1rem; margin-top:10px; }
+.hgrid { display:inline-grid; gap:3px; }
+.hcell { border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:bold; color:#fff; font-family:"Courier New",monospace; }
+.axis { font-family:"Courier New",monospace; font-size:0.8rem; color:var(--muted); display:flex; align-items:center; justify-content:center; }
+.big { font-size:2.4rem; font-weight:bold; font-family:"Courier New",monospace; }
+.pill { display:inline-block; padding:4px 12px; border-radius:20px; font-weight:bold; font-size:0.9rem; }
+.keys { position:fixed; right:18px; bottom:14px; font-size:0.8rem; color:var(--muted); background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 10px; }
+.vec { display:inline-grid; grid-template-columns:repeat(6,18px); gap:2px; vertical-align:middle; }
+.vec div { width:18px; height:18px; border-radius:3px; }
+/* stepper */
+.stepper { border:2px solid var(--line); border-radius:18px; padding:18px 22px; margin:14px 0 26px; background:#fff; }
+.st-head { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+.st-head .st-count { color:var(--muted); margin-left:6px; }
+.st-body { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr); gap:22px; align-items:start; }
+@media (max-width:1100px) { .st-body { grid-template-columns:1fr; } }
+.st-vis { min-height:380px; }
+.st-say { background:var(--teal-lt); color:#0a5e5d; font-weight:bold; font-size:1.2rem; border-radius:14px; padding:16px 18px; line-height:1.4; }
+.st-ex { margin-top:12px; background:var(--amber-lt); border-radius:14px; padding:12px 16px; font-size:1.02rem; }
+.st-ex b { display:block; font-size:0.8rem; letter-spacing:2px; text-transform:uppercase; color:var(--amber); margin-bottom:4px; }
+.st-code { margin-top:12px; background:var(--code); border-radius:14px; padding:10px 0 12px; font-family:"Courier New","DejaVu Sans Mono",monospace; font-size:0.9rem; color:#E4E4EF; }
+.st-code .hd { font-family:Calibri,Carlito,sans-serif; font-size:0.72rem; letter-spacing:2px; text-transform:uppercase; color:#9A9AB0; font-weight:bold; padding:4px 16px 8px; }
+.st-code .l { padding:4px 16px; white-space:pre-wrap; border-left:6px solid transparent; }
+.st-code .l.on { background:#3A3A5C; border-left-color:#5FC2BF; }
+.st-code .l.future { color:#6A6A84; } .st-code .l.future span { color:inherit !important; }
+.vn { display:inline-grid; gap:3px; }
+.vn div { border-radius:6px; display:flex; align-items:center; justify-content:center; font-family:"Courier New",monospace; font-weight:bold; font-size:0.82rem; border:1px solid #E1E5E8; }
+.bars { display:flex; gap:10px; align-items:flex-end; }
+.bars .b { text-align:center; width:52px; }
+.bars .bt { display:flex; align-items:flex-end; justify-content:center; }
+.bars .bf { width:36px; border-radius:6px 6px 0 0; transition:height .4s; }
+.bars .bv { font-size:0.75rem; color:var(--muted); height:20px; }
+.bars .bl { font-weight:bold; font-family:"Courier New",monospace; margin-top:4px; }
+.vbox { border:3px solid var(--line); border-radius:14px; padding:10px 12px; background:#fff; display:inline-block; vertical-align:top; transition:all .3s; }
+.vbox .vt { font-size:0.8rem; font-weight:bold; letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
+.vbox.on { border-color:var(--teal); box-shadow:0 0 0 5px rgba(14,124,123,.15); }
+.vbox.dim { opacity:.28; }
+.varr { display:inline-flex; align-items:center; font-size:1.8rem; color:var(--muted); padding:0 6px; align-self:center; }
+.vrow { display:flex; align-items:center; flex-wrap:wrap; gap:6px; row-gap:12px; }
+.picker { display:inline-flex; border:2px solid var(--line); border-radius:12px; overflow:hidden; }
+.picker button { border:none; border-radius:0; width:54px; font-family:"Courier New",monospace; font-size:1.2rem; padding:10px 0; }
+.picker button + button { border-left:2px solid var(--line); }
+.picker button.on { background:var(--purple); color:#fff; }
+.tokrow2 { display:flex; gap:10px; flex-wrap:wrap; }
+.tk2 { min-width:70px; padding:12px 10px; text-align:center; border:3px solid var(--line); border-radius:12px; font-weight:bold; font-size:1.3rem; background:#fff; transition:all .3s; }
+.tk2 small { display:block; font-weight:normal; font-size:0.7rem; color:var(--muted); font-family:"Courier New",monospace; }
+.legend { color:var(--muted); font-size:0.9rem; margin-top:8px; }
+
+/* presenter bar */
+.pbar { position:sticky; top:0; z-index:50; display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:rgba(255,255,255,.96); padding:10px 0 12px; margin:-6px 0 12px; border-bottom:2px solid var(--line); }
+.pbar button { padding:8px 14px; font-size:0.9rem; border-radius:10px; }
+.pbar button.sec b { color:var(--teal); margin-right:4px; }
+.pbar button.on { background:var(--teal); border-color:var(--teal); color:#fff; }
+.pbar button.on b { color:#fff; }
+.pbar .sp { flex:1; }
+.st-head { position:relative; }
+
+sub { font-size:0.62em; color:inherit; opacity:.75; margin-left:1px; }
+.stepper { scroll-margin-top:84px; }
+
+.stg { display:grid; grid-template-columns:200px 1fr; gap:12px; align-items:stretch; }
+.stg + .stg { margin-top:6px; }
+.stg .lbl { border-radius:12px; padding:8px 10px; background:var(--bg); font-weight:bold; font-size:0.95rem; color:var(--muted); transition:all .3s; }
+.stg .lbl small { display:block; font-weight:normal; font-size:0.8rem; line-height:1.25; margin-top:3px; color:var(--muted); }
+.stg.on .lbl { background:var(--coral); color:#fff; } .stg.on .lbl small { color:#fff; }
+.grp { border:3px solid var(--line); border-radius:12px; padding:8px; display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; min-height:54px; transition:all .3s; }
+.stg.on .grp { border-color:var(--coral); background:#FFF8F5; }
+.empty { color:#A0A8AE; font-style:italic; font-size:0.9rem; align-self:center; padding-left:6px; }
+.ent { border:2px solid var(--teal); background:#fff; border-radius:10px; padding:6px 8px; cursor:pointer; display:flex; gap:8px; align-items:center; position:relative; }
+.ent:hover { box-shadow:0 0 0 4px rgba(14,124,123,.2); }
+.ent.sel { background:var(--teal-lt); outline:3px solid var(--ink); }
+.ent .nm { font-family:"Courier New",monospace; font-weight:bold; font-size:0.78rem; color:var(--teal); }
+.ent .sh { font-family:"Courier New",monospace; font-size:0.68rem; color:var(--muted); display:block; }
+.ent .new { position:absolute; top:-10px; right:-8px; background:var(--coral); color:#fff; font-size:0.62rem; font-weight:bold; border-radius:8px; padding:1px 6px; }
+.mg { display:inline-grid; gap:1px; }
+.mg div { width:7px; height:7px; border-radius:1px; }
+.dn { margin-left:88px; color:var(--muted); line-height:1; font-size:1.1rem; }
+.insp { margin-top:16px; border-top:2px solid var(--line); padding-top:14px; }
+.insp h3 { margin:0 0 4px; font-size:1.1rem; }
+#tl .st-body { grid-template-columns:minmax(0,2.2fr) minmax(300px,1fr); }
+.tkid { display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+.tkid div { border:2px solid var(--purple); background:var(--purple-lt); color:var(--purple); border-radius:10px; padding:2px 6px; font-size:0.9rem; font-weight:bold; text-align:center; font-family:"Courier New",monospace; }
+.tkid small { display:block; font-weight:normal; font-size:0.65rem; }
+</style></head>
+<body><div class="wrap">
+<div class="kicker">TARA · Week 4 · Section 2</div>
+<h1>TransformerLens — watch the cache fill up</h1>
+<div class="sub">An <b>activation</b> is any intermediate number the model computes on the way to its answer. Normally they are thrown away. <code>run_with_cache</code> keeps every one of them, <b>labelled by name</b>. ① Intuition walks the forward pass stage by stage; ② Code shows the few lines that do all of it at once. Click any cache entry to open it. Axis labels like B<sub>5</sub> mean token B at position 5.</div>
+<div id="tl"></div>
+<div class="note"><code>cache["pattern", 0]</code> is shorthand for <code>cache["blocks.0.attn.hook_pattern"]</code> — <code>utils.get_act_name("pattern", 0)</code> builds that string. Once you can read these names, <code>run_with_hooks(tokens, fwd_hooks=[(name, fn)])</code> is just “pick a name and intercept it” (hooks page).</div>
+<div class="note" style="background:var(--bg);margin-top:18px"><b>Read more:</b> <a href="https://transformerlensorg.github.io/TransformerLens/" target="_blank">TransformerLens docs</a> · <a href="https://github.com/callummcdougall/ARENA_3.0" target="_blank">ARENA 1.2 notebook</a> · <a href="https://dynalist.io/d/n2ZWtnoYHrU1s4vnFSAQ519J" target="_blank">mech interp glossary</a></div>
+</div>
+<script>// ---------------- shared deterministic toy model (same recipe in every TARA Week 4 page) ----------------
+function seededRand(seed) { let s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+function matmul(A, B) { const r = A.length, inner = A[0].length, c = B[0].length; const out = Array.from({ length: r }, () => Array(c).fill(0)); for (let i = 0; i < r; i++) for (let j = 0; j < c; j++) { let s = 0; for (let k = 0; k < inner; k++) s += A[i][k] * B[k][j]; out[i][j] = s; } return out; }
+function transpose(A) { return A[0].map((_, j) => A.map(row => row[j])); }
+function onehot(i, n) { const v = Array(n).fill(0); v[i] = 1; return v; }
+function eye(n) { return Array.from({ length: n }, (_, i) => onehot(i, n)); }
+function softmax(arr) { const m = Math.max(...arr.filter(v => v > -1e8)); const ex = arr.map(v => v <= -1e8 ? 0 : Math.exp(v - m)); const s = ex.reduce((a, b) => a + b, 0); return ex.map(v => v / s); }
+function randomOrthogonal(n, seed) { const rand = seededRand(seed); const cols = []; for (let j = 0; j < n; j++) { let v = Array.from({ length: n }, () => rand() * 2 - 1); for (const u of cols) { const dot = v.reduce((s, vi, i) => s + vi * u[i], 0); v = v.map((vi, i) => vi - dot * u[i]); } const norm = Math.sqrt(v.reduce((s, vi) => s + vi * vi, 0)); v = v.map(vi => vi / norm); cols.push(v); } return cols; }
+function argmax(a) { let b = 0; for (let i = 1; i < a.length; i++) if (a[i] > a[b]) b = i; return b; }
+const VOCAB = ['A', 'B', 'C', 'D', 'E', 'F'], D = 6;
+const WE = randomOrthogonal(D, 1234), WU = transpose(WE), WPOS = randomOrthogonal(D, 555);
+const Z0_SCALE = 0.15, Z1_BOOST = 3.0;
+function prevTokenPattern(n) { return Array.from({ length: n }, (_, i) => softmax(Array.from({ length: n }, (_, j) => j > i ? -1e9 : (j === i - 1 ? 6 : -2)))); }
+function inductionPattern(n, ids, prevAblated) {
+  return Array.from({ length: n }, (_, i) => {
+    const q = WE[ids[i]];
+    return softmax(Array.from({ length: n }, (_, j) => {
+      if (j > i) return -1e9;
+      if (j === 0 || prevAblated) return 0;
+      const k = WE[ids[j - 1]]; let d = 0; for (let t = 0; t < D; t++) d += q[t] * k[t]; return d * 8;
+    }));
+  });
+}
+// ablate: 'none' | 'prev' (zero layer-0 head output) | 'induction' (zero layer-1 head output)
+function runModel(seq, ablate = 'none') {
+  const ids = seq.map(t => VOCAB.indexOf(t)), n = ids.length;
+  const embed = ids.map(id => WE[id].slice());
+  const pos = ids.map((_, i) => WPOS[i % D].slice());
+  const residPre0 = embed.map((r, i) => r.map((v, d) => v + pos[i][d]));
+  const pattern0 = prevTokenPattern(n);
+  const s0 = ablate === 'prev' ? 0 : Z0_SCALE;
+  const z0 = pattern0.map(row => { const o = Array(D).fill(0); row.forEach((w, j) => { for (let d = 0; d < D; d++) o[d] += w * residPre0[j][d] * s0; }); return o; });
+  const residPost0 = residPre0.map((r, i) => r.map((v, d) => v + z0[i][d]));
+  const pattern1 = inductionPattern(n, ids, ablate === 'prev');
+  const s1 = ablate === 'induction' ? 0 : Z1_BOOST;
+  const z1 = pattern1.map(row => { const o = Array(D).fill(0); row.forEach((w, j) => { for (let d = 0; d < D; d++) o[d] += w * embed[j][d] * s1; }); return o; });
+  const residPost1 = residPost0.map((r, i) => r.map((v, d) => v + z1[i][d]));
+  const logits = matmul(residPost1, WU);
+  return { ids, n, embed, pos, residPre0, pattern0, z0, residPost0, pattern1, z1, residPost1, logits, pred: logits.map(r => VOCAB[argmax(r)]) };
+}
+function diagMean(p, off) { const v = []; for (let i = 0; i < p.length; i++) { const j = i + off; if (j >= 0 && j < p.length) v.push(p[i][j]); } return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; }
+
+// ---------------- rendering helpers ----------------
+// token + position label, e.g. B with a small 5 = token B at position 5
+const PL = (t, i) => `${t}<sub>${i}</sub>`;
+function rampColor(w, base = [14, 124, 123]) { const t = Math.max(0, Math.min(1, w)); return `rgb(${Math.round(255 - t * (255 - base[0]))},${Math.round(255 - t * (255 - base[1]))},${Math.round(255 - t * (255 - base[2]))})`; }
+function divColor(v, bound = 1) { const t = Math.max(-1, Math.min(1, v / bound)); if (t >= 0) return rampColor(t); return `rgb(255,${Math.round(255 + t * (255 - 87))},${Math.round(255 + t * (255 - 46))})`; }
+const RGB = { teal: [14, 124, 123], coral: [228, 87, 46], purple: [108, 74, 182], amber: [183, 121, 31] };
+function vecHTML(v, bound = 1) { return `<div class="vec">${v.map(x => `<div style="background:${divColor(x, bound)}" title="${x.toFixed(3)}"></div>`).join('')}</div>`; }
+// heatmap with axis labels; opts: {cell, color, rowLabels, colLabels, vals, highlightRow, masked}
+function heatHTML(M, o = {}) {
+  const n = M.length, m = M[0].length, cell = o.cell || 40, col = RGB[o.color || 'teal'];
+  let h = `<div class="hgrid" style="grid-template-columns:${o.rowLabels ? '44px ' : ''}repeat(${m},${cell}px)">`;
+  if (o.colLabels) { if (o.rowLabels) h += '<div></div>'; o.colLabels.forEach(l => h += `<div class="axis" style="height:26px">${l}</div>`); }
+  M.forEach((row, i) => {
+    if (o.rowLabels) h += `<div class="axis">${o.rowLabels[i]}</div>`;
+    row.forEach((w, j) => {
+      const masked = o.causal && j > i;
+      const bg = masked ? '#FFFFFF' : (o.diverging ? divColor(w, o.bound || 1) : rampColor(w, col));
+      const ring = (o.highlightRow === i || o.highlightCol === j) ? 'outline:3px solid #1A1A1A;outline-offset:-2px;' : '';
+      const txt = o.vals && !masked && Math.abs(w) >= (o.valMin ?? 0.2) ? (Math.abs(w) >= 10 ? w.toFixed(0) : (+w.toFixed(o.dp ?? 1) === 0 ? (0).toFixed(o.dp ?? 1) : w.toFixed(o.dp ?? 1))) : '';
+      h += `<div class="hcell" data-i="${i}" data-j="${j}" style="width:${cell}px;height:${cell}px;background:${bg};${masked ? 'border:1px solid #EEF0F2;' : ''}${ring}color:${(o.diverging ? Math.abs(w) : w) > 0.55 ? '#fff' : '#1A1A1A'}">${txt}</div>`;
+    });
+  });
+  return h + '</div>';
+}
+// syntax highlight a python line
+function hl(line) {
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  let code = line, com = '';
+  const ci = line.indexOf('#'); if (ci >= 0) { code = line.slice(0, ci); com = line.slice(ci); }
+  let out = esc(code).replace(/("[^"]*"|'[^']*')|\b(def|return|for|in|if|lambda|None|True|False)\b|\b(\d+(?:\.\d+)?)\b/g, (m, s, k, n) => s ? `<span class="str">${s}</span>` : k ? `<span class="kw">${k}</span>` : `<span class="num">${n}</span>`);
+  return out + (com ? `<span class="com">${esc(com)}</span>` : '');
+}
+// build a code/pseudocode pair. rows: [{code:'...', say:'...'}]; returns setter(activeIdxs, doneUpTo)
+function codePair(el, title, rows) {
+  el.classList.add('codepair');
+  el.innerHTML = `<div class="hd c">${title}</div><div class="hd p">what it does</div>` +
+    rows.map((r, i) => `<div class="ln c" data-i="${i}">${r.code ? hl(r.code) : '&nbsp;'}</div><div class="ln p" data-i="${i}">${r.say || '&nbsp;'}</div>`).join('') +
+    `<div class="c pad"></div><div class="p pad"></div>`;
+  return (on = [], doneBelow = -1) => el.querySelectorAll('.ln').forEach(d => { const i = +d.dataset.i; d.classList.toggle('on', on.includes(i)); d.classList.toggle('done', i < doneBelow && !on.includes(i)); });
+}
+
+// ---------------- Stepper: every section = ① Intuition steps, then ② Code steps, one shared visual ----------------
+const STEPPERS = [];
+function Stepper(root, cfg) {
+  // cfg: { intuition:[{say, ex, v}], code:{file, lines:[...], steps:[{a:[...], say, v}]}, render(v, mode, k, vis) }
+  if (typeof root === 'string') root = document.getElementById(root);
+  root.classList.add('stepper');
+  const hasCode = !!cfg.code;
+  root.innerHTML = `<div class="st-head">
+      <div class="seg st-modes"><button data-m="i" class="on">① Intuition</button>${hasCode ? '<button data-m="c">② Code</button>' : ''}</div>
+      <button class="st-back">◀ Back</button><button class="primary st-next">Next ▶</button><span class="st-count mono"></span></div>
+    <div class="st-body"><div class="st-vis"></div><div class="st-side"><div class="st-say"></div><div class="st-ex"></div><div class="st-code"></div></div></div>`;
+  const q = s => root.querySelector(s);
+  const self = { mode: 'i', k: 0, root };
+  const steps = () => self.mode === 'i' ? cfg.intuition : cfg.code.steps;
+  self.render = () => {
+    const st = steps()[self.k];
+    root.querySelectorAll('.st-modes button').forEach(b => b.classList.toggle('on', b.dataset.m === self.mode));
+    q('.st-say').innerHTML = st.say;
+    q('.st-ex').innerHTML = st.ex ? `<b>Example</b> ${st.ex}` : '';
+    q('.st-ex').style.display = st.ex ? 'block' : 'none';
+    if (self.mode === 'c') {
+      const last = Math.max(...st.a);
+      q('.st-code').style.display = 'block';
+      q('.st-code').innerHTML = `<div class="hd">${cfg.code.file}</div>` + cfg.code.lines.map((l, i) => `<div class="l ${st.a.includes(i) ? 'on' : ''} ${i > last ? 'future' : ''}">${l ? hl(l.replace(/(\S)\s{2,}#/, '$1  #')) : '&nbsp;'}</div>`).join('');
+    } else q('.st-code').style.display = 'none';
+    q('.st-count').textContent = `${self.mode === 'i' ? 'intuition' : 'code'} · step ${self.k + 1} / ${steps().length}`;
+    q('.st-back').disabled = self.k === 0 && self.mode === 'i';
+    q('.st-next').disabled = self.k === steps().length - 1 && (self.mode === 'c' || !hasCode);
+    q('.st-next').textContent = (self.k === steps().length - 1 && self.mode === 'i' && hasCode) ? 'Go to code ▶' : 'Next ▶';
+    cfg.render(st.v || {}, self.mode, self.k, q('.st-vis'));
+  };
+  self.next = () => { if (self.k < steps().length - 1) self.k++; else if (self.mode === 'i' && hasCode) { self.mode = 'c'; self.k = 0; } self.render(); };
+  self.back = () => { if (self.k > 0) self.k--; else if (self.mode === 'c') { self.mode = 'i'; self.k = cfg.intuition.length - 1; } self.render(); };
+  q('.st-next').onclick = self.next; q('.st-back').onclick = self.back;
+  root.querySelectorAll('.st-modes button').forEach(b => b.onclick = () => { self.mode = b.dataset.m; self.k = 0; self.render(); });
+  STEPPERS.push(self); self.render();
+  return self;
+}
+// ---------------- presenter mode: one section at a time, tabs, keys, text size, full screen ----------------
+let ACTIVE_ST = null;
+function nearestStepper() {
+  if (ACTIVE_ST && ACTIVE_ST.root.offsetParent !== null) return ACTIVE_ST;
+  const mid = window.innerHeight / 2; let best = STEPPERS[0], bd = 1e9;
+  STEPPERS.forEach(s => { const r = s.root.getBoundingClientRect(); const d = Math.abs((r.top + r.bottom) / 2 - mid); if (r.bottom > 0 && r.top < window.innerHeight && d < bd) { bd = d; best = s; } });
+  return best;
+}
+function setFont(px) { document.documentElement.style.fontSize = px + 'px'; try { localStorage.setItem('tara-font', px); } catch (e) {} }
+function curFont() { return parseFloat(getComputedStyle(document.documentElement).fontSize); }
+window.addEventListener('load', () => {
+  try { const f = localStorage.getItem('tara-font'); if (f) setFont(+f); } catch (e) {}
+  const secs = STEPPERS.map(st => { let h = st.root.previousElementSibling; while (h && h.tagName !== 'H2') h = h.previousElementSibling; return { st, h }; });
+  const wrap = document.querySelector('.wrap'); if (!wrap || !secs.length) return;
+  const bar = document.createElement('div'); bar.className = 'pbar';
+  bar.innerHTML = (secs.length > 1 ? secs.map((s, i) => `<button class="sec" data-i="${i}"><b>${i + 1}</b> ${(s.h ? s.h.textContent : 'Section ' + (i + 1)).replace(/^\s*\d+\s*·\s*/, '').split(/ — | – /)[0]}</button>`).join('') : '') +
+    `<span class="sp"></span><button data-a="-" title="smaller text (−)">A−</button><button data-a="+" title="bigger text (+)">A+</button><button data-a="f" title="full screen (F)">⛶</button>` + (secs.length > 1 ? `<button data-a="all" title="show every section (0)">all</button>` : '');
+  const sub = wrap.querySelector('.sub'); (sub || wrap.firstChild).after(bar);
+  let all = secs.length < 2;
+  window.showSection = i => {
+    ACTIVE_ST = all ? null : secs[i].st;
+    secs.forEach((s, j) => { const on = all || j === i; s.st.root.style.display = on ? '' : 'none'; if (s.h) s.h.style.display = on ? '' : 'none'; });
+    bar.querySelectorAll('.sec').forEach(b => b.classList.toggle('on', !all && +b.dataset.i === i));
+    const ab = bar.querySelector('[data-a="all"]'); if (ab) ab.classList.toggle('on', all);
+    if (!all) { const top = bar.getBoundingClientRect().top + window.scrollY; if (window.scrollY > top) window.scrollTo(0, top); }
+  };
+  bar.onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.i != null) { all = false; showSection(+b.dataset.i); }
+    else if (b.dataset.a === '+') setFont(curFont() + 2);
+    else if (b.dataset.a === '-') setFont(Math.max(14, curFont() - 2));
+    else if (b.dataset.a === 'f') { if (!document.fullscreenElement) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
+    else if (b.dataset.a === 'all') { all = !all; showSection(Math.max(0, secs.findIndex(s => s.st === ACTIVE_ST))); }
+  };
+  showSection(0);
+  window._secs = secs.length;
+  const kh = document.createElement('div'); kh.className = 'keys'; kh.textContent = '→ next · ← back' + (secs.length > 1 ? ' · 1–' + secs.length + ' section' : '') + ' · C intuition/code · + − text size · F full screen'; document.body.appendChild(kh);
+});
+document.addEventListener('keydown', e => {
+  if (!STEPPERS.length || ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+  const best = nearestStepper();
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); best.next(); }
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); best.back(); }
+  else if (/^[1-9]$/.test(e.key) && window.showSection && +e.key <= (window._secs || 0) && window._secs > 1) window.showSection(+e.key - 1);
+  else if (e.key === '+' || e.key === '=') setFont(curFont() + 2);
+  else if (e.key === '-') setFont(Math.max(14, curFont() - 2));
+  else if (e.key === 'f' || e.key === 'F') { if (!document.fullscreenElement) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
+  else if (e.key === 'c' || e.key === 'C') { best.mode = best.mode === 'i' ? 'c' : 'i'; best.k = 0; best.render(); }
+});
+// numbers-in-cells vector (for intuition: show actual values)
+function vecNum(v, o = {}) {
+  const c = o.cell || 46, b = o.bound || 1;
+  return `<div class="vn" style="grid-template-columns:repeat(${v.length},${c}px)">${v.map((x, i) => `<div style="width:${c}px;height:${c}px;background:${o.plain ? '#fff' : divColor(x, b)};color:${Math.abs(x) / b > 0.55 && !o.plain ? '#fff' : '#1A1A1A'};${o.hi && o.hi(i) ? 'outline:3px solid #1A1A1A;outline-offset:-2px;' : ''}">${o.hide ? '' : (+x.toFixed(o.dp ?? 1) === 0 ? '0' : x.toFixed(o.dp ?? 1))}</div>`).join('')}</div>`;
+}
+// vertical bars for logits/scores
+function barsHTML(vals, labels, o = {}) {
+  const mx = o.max || Math.max(...vals.map(Math.abs), 0.1), H = o.h || 150, win = o.win ?? argmax(vals);
+  return `<div class="bars" style="height:${H + 60}px">${vals.map((v, i) => `<div class="b"><div class="bv mono">${(+v.toFixed(o.dp ?? 1) === 0 ? 0 : v).toFixed(o.dp ?? 1)}</div><div class="bt" style="height:${H}px"><div class="bf" style="height:${Math.max(3, Math.abs(v) / mx * H)}px;background:${i === win ? (o.col || 'var(--teal)') : v < 0 ? 'var(--coral-lt)' : '#C9D0D5'}"></div></div><div class="bl">${labels[i]}</div></div>`).join('')}</div>`;
+}
+function box(title, inner, o = {}) { return `<div class="vbox ${o.cls || ''}" style="${o.style || ''}"><div class="vt" style="color:${o.col || 'var(--muted)'}">${title}</div>${inner}</div>`; }
+const AR = '<div class="varr">→</div>';
+
+const SEQ = 'A B C D A B C D'.split(' ');
+const M = runModel(SEQ);
+const RQ = randomOrthogonal(D, 31), RK = randomOrthogonal(D, 32), RV = randomOrthogonal(D, 33);
+const q0 = matmul(M.residPre0, RQ), k0 = matmul(M.residPre0, RK), v0 = matmul(M.residPre0, RV);
+const q1 = matmul(M.residPost0, RQ), k1 = matmul(M.residPost0, RK), v1 = matmul(M.residPost0, RV);
+// [id, hook name (full), shape, data, stage it appears, kind]
+const ENT = [
+  ['embed', 'hook_embed', '[8, 6]', M.embed, 2],
+  ['pos', 'hook_pos_embed', '[8, 6]', M.pos, 3],
+  ['r0', 'blocks.0.hook_resid_pre', '[8, 6]', M.residPre0, 3],
+  ['q0', 'blocks.0.attn.hook_q', '[8, 1, 6]', q0, 4], ['k0', 'blocks.0.attn.hook_k', '[8, 1, 6]', k0, 4], ['v0', 'blocks.0.attn.hook_v', '[8, 1, 6]', v0, 4],
+  ['p0', 'blocks.0.attn.hook_pattern', '[1, 8, 8]', M.pattern0, 5, 'pat'],
+  ['z0', 'blocks.0.attn.hook_z', '[8, 1, 6]', M.z0, 6], ['rp0', 'blocks.0.hook_resid_post', '[8, 6]', M.residPost0, 6],
+  ['r1', 'blocks.1.hook_resid_pre', '[8, 6]', M.residPost0, 7],
+  ['q1', 'blocks.1.attn.hook_q', '[8, 1, 6]', q1, 7], ['k1', 'blocks.1.attn.hook_k', '[8, 1, 6]', k1, 7], ['v1', 'blocks.1.attn.hook_v', '[8, 1, 6]', v1, 7],
+  ['p1', 'blocks.1.attn.hook_pattern', '[1, 8, 8]', M.pattern1, 7, 'pat'], ['z1', 'blocks.1.attn.hook_z', '[8, 1, 6]', M.z1, 7],
+  ['rp1', 'blocks.1.hook_resid_post', '[8, 6]', M.residPost1, 8],
+  ['logits', 'logits (returned, not cached)', '[8, 6]', M.logits, 8, 'log'],
+];
+const STG = [
+  ['Embed', 'token → row of W_E<br>position → row of W_pos', ['embed', 'pos'], [2, 3]],
+  ['Layer 0 · blocks.0', 'resid_pre = embed + pos<br>q,k,v → pattern → z<br>resid_post = pre + z', ['r0', 'q0', 'k0', 'v0', 'p0', 'z0', 'rp0'], [3, 4, 5, 6]],
+  ['Layer 1 · blocks.1', 'reads layer 0’s resid_post<br>same names, blocks.1.*', ['r1', 'q1', 'k1', 'v1', 'p1', 'z1', 'rp1'], [7]],
+  ['Output', 'resid_post × W_U = logits', ['logits'], [8]],
+];
+const byId = Object.fromEntries(ENT.map(e => [e[0], e]));
+function mini(Mx) { const m = Mx[0].length; return `<div class="mg" style="grid-template-columns:repeat(${m},7px)">${Mx.map(r => r.map(x => `<div style="background:${divColor(x, 1)}"></div>`).join('')).join('')}</div>`; }
+const short = n => n.replace('blocks.0.', '').replace('blocks.1.', '');
+let tlOpen = null, tlKey = '';
+function tlRender(v, mode, k, el) {
+  const key = mode + k; if (key !== tlKey) { tlKey = key; tlOpen = v.open || null; }
+  const up = v.upto ?? 0, isNew = e => v.allNew ? up >= e[4] : e[4] === up;
+  let h = '';
+  if (up >= 1) h += `<div class="tkid">${SEQ.map((t, i) => `<div>${t}<small>id ${VOCAB.indexOf(t)}·p${i}</small></div>`).join('')}<span class="legend" style="align-self:center">input tokens — you pass these in</span></div>`;
+  else h += `<div class="status" style="margin:0 0 12px">“A B C D A B C D” — not run yet. The cache is empty.</div>`;
+  STG.forEach(([name, what, ids, at], si) => {
+    const on = !v.allNew && at.includes(up);
+    const shown = ids.map(i => byId[i]).filter(e => up >= e[4]);
+    h += (si ? '<div class="dn">↓</div>' : '') + `<div class="stg ${on || (v.hiStage === si) ? 'on' : ''}"><div class="lbl">${name}<small>${what}</small></div><div class="grp">${shown.length ? shown.map(e => `<div class="ent ${tlOpen === e[0] ? 'sel' : ''}" data-id="${e[0]}">${isNew(e) ? '<span class="new">NEW</span>' : ''}<div><span class="nm">${short(e[1])}</span><span class="sh">${e[2]}</span></div>${mini(e[3])}</div>`).join('') : '<span class="empty">(nothing cached yet)</span>'}</div></div>`;
+  });
+  // inspector
+  const e = tlOpen && byId[tlOpen];
+  if (v.lookup) {
+    const hiTok = VOCAB.indexOf('C');
+    h += `<div class="insp"><h3>How <code>hook_embed</code> is made: a lookup, row by row</h3><div class="vrow" style="align-items:flex-start">${box('W_E · one row per vocab word', heatHTML(WE, { cell: 40, diverging: true, rowLabels: VOCAB, colLabels: [0, 1, 2, 3, 4, 5].map(String), vals: true, valMin: 0, dp: 1, highlightRow: hiTok }), { col: 'var(--purple)' })}${AR}${box('hook_embed · one row per position', heatHTML(M.embed, { cell: 40, diverging: true, rowLabels: SEQ.map(PL), colLabels: [0, 1, 2, 3, 4, 5].map(String), vals: true, valMin: 0, dp: 1, highlightRow: 2 }), { col: 'var(--teal)' })}</div><div class="legend">Token C (id 2) at position 2 → copy row C of W_E. Positions 2 and 6 are both C → identical rows. The position is added next, by hook_pos_embed.</div></div>`;
+  } else if (e) {
+    const isPat = e[5] === 'pat', isLog = e[5] === 'log';
+    const cols = isPat ? SEQ.map(PL) : isLog ? VOCAB : [0, 1, 2, 3, 4, 5].map(String);
+    const note = isPat ? (e[0] === 'p0' ? 'Rows = query (destination) position, columns = key (source). One cell left of the diagonal in every row: the previous-token head.' : 'Blank-ish until the repeat, then a stripe 3 cells back: each token attends to the token AFTER its earlier copy — the induction head.')
+      : isLog ? `Rows = position, columns = vocab. Biggest value = prediction: from the repeat on, predicted <b>${M.pred.slice(4, 7).join(' ')}</b>, true next <b>${SEQ.slice(5).join(' ')}</b> ✓` : e[0] === 'r0' ? 'Row = embed row + pos row. This sum is the residual stream that layer 0 reads.' : e[0] === 'rp0' || e[0] === 'r1' ? 'resid_pre + head output. Layer 1 reads exactly this (so blocks.1.hook_resid_pre is the same numbers).' : 'Rows = position, columns = the 6 dimensions (toy values). Teal = positive, coral = negative.';
+    h += `<div class="insp"><h3><code>cache["${e[1].split(' ')[0]}"]</code> <span class="pill" style="background:var(--bg)">shape ${e[2]}</span></h3><div class="legend" style="margin-bottom:8px">${note}</div>${heatHTML(e[3], { cell: isPat ? 44 : 42, color: 'teal', rowLabels: SEQ.map(PL), colLabels: cols, vals: true, valMin: isPat ? 0.1 : 0.15, dp: isPat ? 2 : 1, diverging: !isPat, bound: isLog ? 3 : 1, causal: isPat })}</div>`;
+  } else if (up >= 2) h += `<div class="legend" style="margin-top:12px">Click any entry above to open it full size.</div>`;
+  el.innerHTML = h;
+  el.querySelectorAll('.ent').forEach(c => c.onclick = () => { tlOpen = c.dataset.id; v = Object.assign({}, v, { lookup: 0 }); tlRender(v, mode, k, el); });
+}
+Stepper('tl', {
+  render: tlRender,
+  intuition: [
+    { say: 'Why cache? To study a circuit we need to see its insides — every intermediate result, not just the final answer.', ex: 'Like a flight recorder: the plane flies normally, but every reading is saved with a label so you can replay it.', v: { upto: 0 } },
+    { say: 'Input: 8 tokens, each turned into an id. Our toy model: 2 layers, 1 head each, 6-number vectors, no MLPs.', ex: 'The notebook model is the same shape idea: 2 layers × 12 heads × 768 numbers.', v: { upto: 1 } },
+    { say: 'Stage 1 · embed. Each token looks up its row of W_E. That result is saved as hook_embed.', ex: 'Token C → row C of W_E. Both C’s get identical rows — the model can’t yet tell them apart.', v: { upto: 2, lookup: 1 } },
+    { say: 'Each position also looks up a row of W_pos (hook_pos_embed). Their sum is the residual stream entering layer 0: blocks.0.hook_resid_pre.', ex: 'Now the two C’s differ: C@2 and C@6 have different position rows.', v: { upto: 3, open: 'r0' } },
+    { say: 'Layer 0’s head makes a query, key and value for every position from resid_pre. Each gets its own hook.', v: { upto: 4, open: 'q0' } },
+    { say: 'Query · key → the attention pattern: who looks at whom. Layer 0 is the previous-token head.', ex: 'Row B5 puts ~all its weight on A4, the token just before it.', v: { upto: 5, open: 'p0' } },
+    { say: 'z = pattern-weighted values (what the head writes). It is ADDED to the stream: resid_post = resid_pre + z.', ex: 'Position 5 now carries “I am B, and the token before me was A”.', v: { upto: 6, open: 'rp0' } },
+    { say: 'Layer 1 reads that stream and repeats the same steps — same names under blocks.1.*. Its pattern is the induction stripe.', ex: 'Row B5 looks at C2: the token AFTER the earlier B.', v: { upto: 7, open: 'p1' } },
+    { say: 'The final stream × W_U = logits. After the repeat starts, the model predicts the next token correctly.', v: { upto: 8, open: 'logits' } },
+    { say: 'That’s the whole cache: every stage, every name, one forward pass. Any of these names can also be HOOKED — read or edited mid-run.', v: { upto: 8, allNew: 0 } },
+  ],
+  code: { file: 'notebook · run_with_cache', lines: [
+    'model = HookedTransformer(cfg)      # hook points built in', 'tokens = model.to_tokens("A B C D A B C D")', 'logits, cache = model.run_with_cache(', '    tokens, remove_batch_dim=True)   # ONE pass fills it all', 'cache["hook_embed"]                  # [8, 6]', 'cache["blocks.0.hook_resid_pre"]     # embed + pos', 'cache["pattern", 0]                  # [1, 8, 8]', 'cache["blocks.0.hook_resid_post"]    # resid_pre + z', 'cache["pattern", 1]                  # induction stripe', 'utils.get_act_name("pattern", 1)     # "blocks.1.attn.hook_pattern"', 'logits.argmax(-1)                    # predictions'],
+    steps: [
+      { a: [0], say: 'Building the model wires a named HookPoint at every stage. Nothing is saved yet.', v: { upto: 0 } },
+      { a: [1], say: 'Text → token ids.', v: { upto: 1 } },
+      { a: [2, 3], say: 'One call. The whole cache fills at once — every entry is NEW.', v: { upto: 8, allNew: 1 } },
+      { a: [4], say: 'Index by name → a tensor of real values.', v: { upto: 8, open: 'embed', hiStage: 0 } },
+      { a: [5], say: 'Full names look like blocks.{layer}.hook_{thing}.', v: { upto: 8, open: 'r0', hiStage: 1 } },
+      { a: [6], say: 'Shorthand: ["pattern", 0] = layer 0’s attention pattern.', v: { upto: 8, open: 'p0', hiStage: 1 } },
+      { a: [7], say: 'What layer 1 will read.', v: { upto: 8, open: 'rp0', hiStage: 1 } },
+      { a: [8], say: 'Layer 1’s pattern: the induction stripe.', v: { upto: 8, open: 'p1', hiStage: 2 } },
+      { a: [9], say: 'The shorthand expands to the full string — use it in hooks.', v: { upto: 8, open: 'p1', hiStage: 2 } },
+      { a: [10], say: 'Logits are returned, not cached. argmax per row = predictions.', v: { upto: 8, open: 'logits', hiStage: 3 } },
+    ] },
+});
+</script></body></html>
